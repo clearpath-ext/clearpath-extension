@@ -36,27 +36,29 @@ jobs:
         env:
           VITE_VERSION: ${{ github.ref_name }}
 
-      - name: Build Firefox
-        run: pnpm build:firefox
-        env:
-          VITE_VERSION: ${{ github.ref_name }}
+      # ── Firefox build (Phase 6) ───────────────────────────────────────────────
+      # Uncomment once Firefox manifest and compat work is complete:
+      #
+      # - name: Build Firefox
+      #   run: pnpm build:firefox
+      #   env:
+      #     VITE_VERSION: ${{ github.ref_name }}
 
       - name: Package Chrome extension
         run: |
           cd dist
           zip -r ../clearpath-chrome-${{ github.ref_name }}.zip .
 
-      - name: Package Firefox extension
-        run: |
-          cd dist-firefox
-          zip -r ../clearpath-firefox-${{ github.ref_name }}.zip .
+      # - name: Package Firefox extension
+      #   run: |
+      #     cd dist-firefox
+      #     zip -r ../clearpath-firefox-${{ github.ref_name }}.zip .
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             clearpath-chrome-${{ github.ref_name }}.zip
-            clearpath-firefox-${{ github.ref_name }}.zip
           generate_release_notes: true
           draft: false
 
