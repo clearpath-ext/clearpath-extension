@@ -124,4 +124,42 @@ describe('tts module', () => {
     mockGetVoices.mockReturnValue(mockVoices)
     expect(tts.getVoices()).toHaveLength(2)
   })
+
+  it('only speaks the last call when two speak() calls race on getSettings', async () => {
+    // Two deferred promises — we resolve them in reverse order to prove the guard works
+    let resolveFirst!: (s: ReturnType<typeof mockGetSettings.mock.results[0]['value']>) => void
+    let resolveSecond!: (s: ReturnType<typeof mockGetSettings.mock.results[0]['value']>) => void
+    const p1 = new Promise<Awaited<ReturnType<typeof mockGetSettings>>>((r) => (resolveFirst = r))
+    const p2 = new Promise<Awaited<ReturnType<typeof mockGetSettings>>>((r) => (resolveSecond = r))
+
+    mockGetSettings.mockReturnValueOnce(p1).mockReturnValueOnce(p2)
+
+    tts.init(() => {}, () => {})
+
+    // Fire both without awaiting — second increments speakVersion past first
+    const first = tts.speak('first')
+    const second = tts.speak('second')
+
+    const settings = {
+      ttsVoice: '',
+      ttsRate: 1.0,
+      ttsPitch: 1.0,
+      llmProvider: 'none' as const,
+      apiKey: '',
+      ollamaUrl: 'http://localhost:11434',
+      readingLevel: 5 as const,
+      symbolsEnabled: false,
+      symbolDensity: 'key' as const,
+    }
+
+    // Resolve second first — it proceeds; when first resolves it must bail
+    resolveSecond(settings)
+    await second
+    resolveFirst(settings)
+    await first
+
+    expect(mockSpeak).toHaveBeenCalledOnce()
+    const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
+    expect(utterance.text).toBe('second')
+  })
 })

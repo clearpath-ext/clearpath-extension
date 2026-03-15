@@ -18,9 +18,14 @@ const chromeMock = {
       addListener: vi.fn(),
       removeListener: vi.fn(),
     },
+    onInstalled: {
+      addListener: vi.fn(),
+    },
+    lastError: null as { message: string } | null,
   },
   contextMenus: {
     create: vi.fn(),
+    removeAll: vi.fn().mockImplementation((cb?: () => void) => cb?.()),
     onClicked: {
       addListener: vi.fn(),
     },
