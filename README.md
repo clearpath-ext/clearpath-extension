@@ -13,7 +13,6 @@
     <img src="https://img.shields.io/github/actions/workflow/status/clearpath-ext/clearpath-extension/ci.yml?label=CI&style=flat-square" alt="CI"/>
   </p>
 
-  <img src="docs/assets/demo.gif" alt="ClearPath demo showing text being simplified and read aloud on a webpage" width="680"/>
 </div>
 
 ---
