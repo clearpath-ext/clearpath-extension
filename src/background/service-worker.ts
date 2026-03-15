@@ -1,4 +1,4 @@
-import type { Message, TTSState } from '../shared/types'
+import type { Message } from '../shared/types'
 
 const MENU_READ_ALOUD = 'clearpath-read-aloud'
 

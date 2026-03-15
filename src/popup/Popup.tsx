@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getSettings, setSettings } from '../lib/storage'
-import type { Message, TTSState } from '../shared/types'
+import type { Message, TTSAction, TTSState } from '../shared/types'
 
 export function Popup() {
   const [ttsState, setTtsState] = useState<TTSState>('idle')
@@ -55,7 +55,7 @@ export function Popup() {
     return () => chrome.runtime.onMessage.removeListener(listener)
   }, [])
 
-  const sendTtsAction = useCallback(async (action: string) => {
+  const sendTtsAction = useCallback(async (action: TTSAction) => {
     try {
       await chrome.runtime.sendMessage({
         type: 'TTS_ACTION',
