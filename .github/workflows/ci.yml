@@ -12,6 +12,7 @@ on:
       - 'vite.config.ts'
       - 'tsconfig*.json'
       - 'vitest.config.ts'
+      - '.eslintrc.cjs'
   pull_request:
     branches: [main]
 
@@ -23,7 +24,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - uses: actions/setup-node@v4
         with:
