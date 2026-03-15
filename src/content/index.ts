@@ -47,7 +47,10 @@ chrome.runtime.onMessage.addListener(
       case 'TTS_SPEAK_SELECTION': {
         const text = window.getSelection()?.toString().trim() ?? ''
         if (text) {
-          tts.speak(text).then(() => sendResponse({ ok: true, data: undefined }))
+          tts
+            .speak(text)
+            .then(() => sendResponse({ ok: true, data: undefined }))
+            .catch((e: unknown) => sendResponse({ ok: false, error: String(e) }))
         } else {
           sendResponse({ ok: false, error: 'No text selected' })
         }
@@ -79,12 +82,18 @@ chrome.runtime.onMessage.addListener(
           const t = node.textContent?.trim()
           if (t) parts.push(t)
         }
-        tts.speak(parts.join(' ')).then(() => sendResponse({ ok: true, data: undefined }))
+        tts
+          .speak(parts.join(' '))
+          .then(() => sendResponse({ ok: true, data: undefined }))
+          .catch((e: unknown) => sendResponse({ ok: false, error: String(e) }))
         return true
       }
 
       case 'TTS_SPEAK': {
-        tts.speak(message.payload.text).then(() => sendResponse({ ok: true, data: undefined }))
+        tts
+          .speak(message.payload.text)
+          .then(() => sendResponse({ ok: true, data: undefined }))
+          .catch((e: unknown) => sendResponse({ ok: false, error: String(e) }))
         return true
       }
 

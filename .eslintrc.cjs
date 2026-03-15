@@ -8,7 +8,6 @@ module.exports = {
   ],
   ignorePatterns: ['dist', 'dist-firefox', '.eslintrc.cjs'],
   parser: '@typescript-eslint/parser',
-  plugins: ['react-refresh'],
   rules: {
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
   },

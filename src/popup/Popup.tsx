@@ -57,6 +57,14 @@ export function Popup() {
     return () => chrome.runtime.onMessage.removeListener(listener)
   }, [])
 
+  // Clear pending debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (rateDebounce.current) clearTimeout(rateDebounce.current)
+      if (pitchDebounce.current) clearTimeout(pitchDebounce.current)
+    }
+  }, [])
+
   const sendTtsAction = useCallback(async (action: TTSAction) => {
     try {
       await chrome.runtime.sendMessage({

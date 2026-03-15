@@ -1,4 +1,5 @@
 // Global test setup
+import '@testing-library/jest-dom/vitest'
 
 // Minimal chrome API mock for tests
 const chromeMock = {

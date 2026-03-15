@@ -92,6 +92,8 @@ const ICON_STOP = `<svg width="14" height="14" viewBox="0 0 14 14" fill="current
 </svg>`
 
 export function init(cbs: ToolbarCallbacks): void {
+  if (host) return // already initialised — prevents duplicate hosts on re-init
+
   callbacks = cbs
 
   host = document.createElement('div')
