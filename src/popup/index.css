@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 320px;
+  min-height: 200px;
+  margin: 0;
+  background-color: #0D1F3C;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom range slider styling */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: #1a3357;
+  outline: none;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #5B9BF8;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+input[type='range']::-webkit-slider-thumb:hover {
+  background: #7ab3fa;
+}
+
+input[type='range']:focus-visible {
+  outline: 2px solid #5B9BF8;
+  outline-offset: 2px;
+}
