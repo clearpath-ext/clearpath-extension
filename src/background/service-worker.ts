@@ -5,10 +5,13 @@ const MENU_READ_ALOUD = 'clearpath-read-aloud'
 // ── Install ───────────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: MENU_READ_ALOUD,
-    title: 'Read Aloud',
-    contexts: ['selection'],
+  // Remove first to avoid duplicate-ID errors on extension update
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: MENU_READ_ALOUD,
+      title: 'Read Aloud',
+      contexts: ['selection'],
+    })
   })
 })
 

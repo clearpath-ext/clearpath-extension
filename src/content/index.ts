@@ -55,13 +55,31 @@ chrome.runtime.onMessage.addListener(
       }
 
       case 'TTS_SPEAK_PAGE': {
-        // Extract visible text — skip scripts, styles, hidden elements
-        const body = document.body.cloneNode(true) as HTMLElement
-        body.querySelectorAll('script,style,noscript,[aria-hidden="true"]').forEach((el) =>
-          el.remove(),
-        )
-        const text = body.innerText.trim()
-        tts.speak(text).then(() => sendResponse({ ok: true, data: undefined }))
+        // Walk the live DOM so computed styles are available (innerText on a
+        // detached clone doesn't filter CSS-hidden elements)
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode(node) {
+            const parent = node.parentElement
+            if (!parent) return NodeFilter.FILTER_REJECT
+            const tag = parent.tagName
+            if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') {
+              return NodeFilter.FILTER_REJECT
+            }
+            if (parent.closest('[aria-hidden="true"]')) return NodeFilter.FILTER_REJECT
+            const style = window.getComputedStyle(parent)
+            if (style.display === 'none' || style.visibility === 'hidden') {
+              return NodeFilter.FILTER_REJECT
+            }
+            return NodeFilter.FILTER_ACCEPT
+          },
+        })
+        const parts: string[] = []
+        let node: Node | null
+        while ((node = walker.nextNode())) {
+          const t = node.textContent?.trim()
+          if (t) parts.push(t)
+        }
+        tts.speak(parts.join(' ')).then(() => sendResponse({ ok: true, data: undefined }))
         return true
       }
 

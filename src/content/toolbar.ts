@@ -149,6 +149,13 @@ export function hide(): void {
   host.style.display = 'none'
 }
 
+export function destroy(): void {
+  host?.remove()
+  host = null
+  shadow = null
+  callbacks = null
+}
+
 export function updateState(state: TTSState): void {
   if (!shadow) return
   const btn = shadow.getElementById('cp-playpause') as HTMLButtonElement | null

@@ -5,6 +5,7 @@ let utterance: SpeechSynthesisUtterance | null = null
 let currentState: TTSState = 'idle'
 let stateCallback: ((state: TTSState) => void) | null = null
 let wordCallback: ((charIndex: number, text: string) => void) | null = null
+let speakVersion = 0
 
 export function init(
   onState: (state: TTSState) => void,
@@ -29,7 +30,11 @@ export async function speak(text: string): Promise<void> {
   const trimmed = text.trim()
   if (!trimmed) return
 
+  const version = ++speakVersion
   const settings = await getSettings()
+
+  // A newer speak() call arrived while we were awaiting settings — bail out
+  if (version !== speakVersion) return
 
   utterance = new SpeechSynthesisUtterance(trimmed)
   utterance.rate = settings.ttsRate

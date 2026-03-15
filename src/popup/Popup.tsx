@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { getSettings, setSettings } from '../lib/storage'
 import type { Message, TTSAction, TTSState } from '../shared/types'
 
@@ -10,6 +10,8 @@ export function Popup() {
   const [pitch, setPitch] = useState(1.0)
   const [loading, setLoading] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const rateDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pitchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load persisted settings and initial TTS state
   useEffect(() => {
@@ -79,14 +81,16 @@ export function Popup() {
     await setSettings({ ttsVoice: name })
   }
 
-  const handleRateChange = async (value: number) => {
+  const handleRateChange = (value: number) => {
     setRate(value)
-    await setSettings({ ttsRate: value })
+    if (rateDebounce.current) clearTimeout(rateDebounce.current)
+    rateDebounce.current = setTimeout(() => setSettings({ ttsRate: value }), 300)
   }
 
-  const handlePitchChange = async (value: number) => {
+  const handlePitchChange = (value: number) => {
     setPitch(value)
-    await setSettings({ ttsPitch: value })
+    if (pitchDebounce.current) clearTimeout(pitchDebounce.current)
+    pitchDebounce.current = setTimeout(() => setSettings({ ttsPitch: value }), 300)
   }
 
   if (loading) {
