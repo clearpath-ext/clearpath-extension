@@ -33,7 +33,7 @@ You don't have to be a developer to make a meaningful contribution.
 
 ### Prerequisites
 - Node.js 18+
-- npm 9+
+- pnpm (`npm install -g pnpm`)
 - Chrome or Firefox (for testing)
 
 ### Setup
@@ -75,11 +75,11 @@ pnpm build:firefox
 
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full breakdown. The short version:
 
-- `src/background/` — Service worker. Handles context menus and routes messages between the popup and content scripts.
-- `src/content/` — Everything injected into pages: the toolbar, overlay, reading mode, TTS controller, symbol overlay.
+- `src/background/` — Service worker. Handles context menus, LLM calls, and routes messages between the popup and content scripts.
+- `src/content/` — Everything injected into pages: the floating toolbar, simplification overlay, TTS controller, word highlighter.
 - `src/popup/` — The extension popup UI (what appears when you click the icon).
-- `src/options/` — The full settings/options page.
-- `src/lib/` — Shared logic: LLM API abstraction, storage helpers, simplification prompts, dictionary.
+- `src/lib/` — Shared logic: LLM provider abstraction, storage helpers.
+- `src/shared/` — TypeScript types, message definitions, and default settings.
 
 Chrome extensions have three isolated JavaScript contexts (background, content, popup) that communicate via `chrome.runtime.sendMessage`. If you're new to extension development, read [ARCHITECTURE.md](docs/ARCHITECTURE.md) before diving in — it'll save you a lot of confusion.
 
@@ -101,13 +101,13 @@ ClearPath's own UI must be accessible. All new UI must:
 - Meet WCAG 2.1 AA contrast ratios
 - Be tested with a screen reader before submitting
 
-Run `pnpm a11y` for an automated accessibility audit.
+Test with a screen reader and keyboard before submitting any UI changes.
 
 ### Testing
-- Write unit tests for anything in `src/lib/`
-- Write E2E tests (Playwright) for new user-facing features
+- Write unit tests for all new code in `src/`
 - Run tests: `pnpm test`
-- Run E2E: `pnpm test:e2e`
+- Run with coverage: `pnpm test:coverage`
+- Aim for 100% coverage — the project currently maintains it
 
 Tests must pass before a PR can be merged.
 
@@ -126,7 +126,7 @@ chore: upgrade Vite to 5.2
 
 1. Fork the repo and create a branch: `git checkout -b feat/your-feature-name`
 2. Make your changes
-3. Run `pnpm lint && pnpm test`
+3. Run `pnpm lint && pnpm typecheck && pnpm test`
 4. Push and open a PR against `main`
 5. Fill out the PR template completely
 6. A maintainer will review within 3–5 business days
