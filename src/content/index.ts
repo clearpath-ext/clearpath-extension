@@ -1,6 +1,7 @@
 import * as tts from './tts'
 import * as toolbar from './toolbar'
 import * as highlighter from './highlighter'
+import * as overlay from './overlay'
 import type { Message, TTSState } from '../shared/types'
 
 // ── Module init ───────────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ toolbar.init({
     tts.stop()
   },
 })
+overlay.init()
 
 // ── Message listener ──────────────────────────────────────────────────────────
 
@@ -63,6 +65,7 @@ chrome.runtime.onMessage.addListener(
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
           acceptNode(node) {
             const parent = node.parentElement
+            /* v8 ignore next -- text nodes in a live body always have parentElement */
             if (!parent) return NodeFilter.FILTER_REJECT
             const tag = parent.tagName
             if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') {
@@ -108,6 +111,21 @@ chrome.runtime.onMessage.addListener(
 
       case 'GET_TTS_STATE': {
         sendResponse({ ok: true, data: tts.getState() })
+        break
+      }
+
+      case 'SIMPLIFY_LOADING': {
+        overlay.showLoading()
+        break
+      }
+
+      case 'SIMPLIFY_RESULT': {
+        overlay.showResult(message.payload.simplified)
+        break
+      }
+
+      case 'SIMPLIFY_ERROR': {
+        overlay.showError(message.payload.error)
         break
       }
     }

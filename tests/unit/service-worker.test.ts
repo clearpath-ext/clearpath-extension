@@ -1,4 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { DEFAULT_SETTINGS } from '../../src/shared/types'
+
+// Mock storage and llm before the module is imported
+const { mockGetSettings, mockCreateProvider } = vi.hoisted(() => ({
+  mockGetSettings: vi.fn(),
+  mockCreateProvider: vi.fn(),
+}))
+
+vi.mock('../../src/lib/storage', () => ({ getSettings: mockGetSettings }))
+vi.mock('../../src/lib/llm', () => ({ createProvider: mockCreateProvider }))
 
 // Import the module — registers listeners on the chrome mocks at module load time
 import '../../src/background/service-worker'
@@ -34,12 +44,17 @@ describe('service-worker', () => {
       expect(installedListener).toBeTypeOf('function')
     })
 
-    it('clears existing menus then creates the Read Aloud context menu', () => {
+    it('clears existing menus then creates both Read Aloud and Simplify context menu items', () => {
       installedListener?.({})
       expect(chrome.contextMenus.removeAll).toHaveBeenCalledOnce()
       expect(chrome.contextMenus.create).toHaveBeenCalledWith({
         id: 'clearpath-read-aloud',
         title: 'Read Aloud',
+        contexts: ['selection'],
+      })
+      expect(chrome.contextMenus.create).toHaveBeenCalledWith({
+        id: 'clearpath-simplify',
+        title: 'Simplify',
         contexts: ['selection'],
       })
     })
@@ -67,6 +82,69 @@ describe('service-worker', () => {
         { menuItemId: 'clearpath-read-aloud' } as chrome.contextMenus.OnClickData,
         {} as chrome.tabs.Tab,
       )
+      expect(chrome.tabs.sendMessage).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Simplify context menu', () => {
+    it('sends SIMPLIFY_LOADING then SIMPLIFY_RESULT on successful LLM call', async () => {
+      const mockSimplify = vi.fn().mockResolvedValue('simplified text')
+      mockCreateProvider.mockReturnValue({ simplify: mockSimplify, summarize: vi.fn() })
+      mockGetSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, readingLevel: 5 })
+
+      contextMenuClickListener?.(
+        {
+          menuItemId: 'clearpath-simplify',
+          selectionText: 'complex text',
+        } as chrome.contextMenus.OnClickData,
+        { id: 42 } as chrome.tabs.Tab,
+      )
+
+      // SIMPLIFY_LOADING is sent synchronously before the async work
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'SIMPLIFY_LOADING' })
+
+      await new Promise((r) => setTimeout(r, 10))
+
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, {
+        type: 'SIMPLIFY_RESULT',
+        payload: { simplified: 'simplified text' },
+      })
+    })
+
+    it('sends SIMPLIFY_LOADING then SIMPLIFY_ERROR on LLM failure', async () => {
+      const mockSimplify = vi.fn().mockRejectedValue(new Error('API failed'))
+      mockCreateProvider.mockReturnValue({ simplify: mockSimplify, summarize: vi.fn() })
+      mockGetSettings.mockResolvedValue({ ...DEFAULT_SETTINGS })
+
+      contextMenuClickListener?.(
+        {
+          menuItemId: 'clearpath-simplify',
+          selectionText: 'some text',
+        } as chrome.contextMenus.OnClickData,
+        { id: 42 } as chrome.tabs.Tab,
+      )
+
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'SIMPLIFY_LOADING' })
+
+      await new Promise((r) => setTimeout(r, 10))
+
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, {
+        type: 'SIMPLIFY_ERROR',
+        payload: { error: 'Error: API failed' },
+      })
+    })
+
+    it('is a no-op when selectionText is empty', async () => {
+      contextMenuClickListener?.(
+        {
+          menuItemId: 'clearpath-simplify',
+          selectionText: '   ',
+        } as chrome.contextMenus.OnClickData,
+        { id: 42 } as chrome.tabs.Tab,
+      )
+
+      await new Promise((r) => setTimeout(r, 10))
+
       expect(chrome.tabs.sendMessage).not.toHaveBeenCalled()
     })
   })
@@ -146,6 +224,21 @@ describe('service-worker', () => {
         type: 'TTS_STATE_CHANGED',
         payload: { state: 'playing' },
       })
+    })
+
+    it('swallows sendMessage rejection for TTS_STATE_CHANGED (popup may be closed)', async () => {
+      vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('popup closed'))
+
+      expect(() =>
+        messageListener?.(
+          { type: 'TTS_STATE_CHANGED', payload: { state: 'playing' } },
+          {},
+          vi.fn(),
+        ),
+      ).not.toThrow()
+
+      // Let the rejected promise settle without uncaught rejection
+      await new Promise((r) => setTimeout(r, 0))
     })
   })
 })

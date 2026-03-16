@@ -9,6 +9,7 @@ const { mockGetSettings, mockSetSettings } = vi.hoisted(() => {
     llmProvider: 'none',
     apiKey: '',
     ollamaUrl: 'http://localhost:11434',
+    ollamaModel: 'llama3.2',
     readingLevel: 5,
     symbolsEnabled: false,
     symbolDensity: 'key',
@@ -37,20 +38,23 @@ Object.defineProperty(window, 'speechSynthesis', {
 
 import { Popup } from '../../src/popup/Popup'
 
+const defaultSettings = {
+  ttsVoice: '',
+  ttsRate: 1.0,
+  ttsPitch: 1.0,
+  llmProvider: 'none' as const,
+  apiKey: '',
+  ollamaUrl: 'http://localhost:11434',
+  ollamaModel: 'llama3.2',
+  readingLevel: 5 as const,
+  symbolsEnabled: false,
+  symbolDensity: 'key' as const,
+}
+
 describe('Popup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSettings.mockResolvedValue({
-      ttsVoice: '',
-      ttsRate: 1.0,
-      ttsPitch: 1.0,
-      llmProvider: 'none',
-      apiKey: '',
-      ollamaUrl: 'http://localhost:11434',
-      readingLevel: 5,
-      symbolsEnabled: false,
-      symbolDensity: 'key',
-    })
+    mockGetSettings.mockResolvedValue(defaultSettings)
     mockGetVoices.mockReturnValue([])
     vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({ ok: false, error: 'no content' })
   })
@@ -59,8 +63,9 @@ describe('Popup', () => {
     vi.useRealTimers()
   })
 
+  // ── Loading state ─────────────────────────────────────────────────────────
+
   it('renders the loading spinner initially', () => {
-    // Keep settings loading indefinitely so the component stays in loading state
     mockGetSettings.mockReturnValueOnce(new Promise(() => {}))
     render(<Popup />)
     expect(screen.queryByRole('button', { name: /read page/i })).toBeNull()
@@ -73,6 +78,30 @@ describe('Popup', () => {
     expect(screen.getByRole('button', { name: /read page/i })).toBeInTheDocument()
   })
 
+  it('applies initial TTS state returned by GET_TTS_STATE on mount', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({ ok: true, data: 'playing' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    // response?.ok was true → setTtsState('playing') was called
+    expect(screen.getByRole('button', { name: /pause/i })).toBeInTheDocument()
+  })
+
+  // ── Settings load catch block (sendMessage rejects on chrome:// pages) ───
+
+  it('handles sendMessage rejection gracefully during settings load', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('not available'))
+    await act(async () => {
+      render(<Popup />)
+    })
+    // Popup still renders — the catch block swallowed the error
+    expect(screen.getByRole('button', { name: /read page/i })).toBeInTheDocument()
+  })
+
+  // ── Voice settings ────────────────────────────────────────────────────────
+
   it('populates the voice dropdown from speechSynthesis', async () => {
     mockGetVoices.mockReturnValue([
       { name: 'Google US English' },
@@ -83,41 +112,28 @@ describe('Popup', () => {
       render(<Popup />)
     })
 
-    // Open voice settings panel
     fireEvent.click(screen.getByRole('button', { name: /voice settings/i }))
 
     expect(screen.getByRole('option', { name: 'Google US English' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Google UK English' })).toBeInTheDocument()
   })
 
-  it('sends TTS_SPEAK_PAGE when Read Page is clicked', async () => {
-    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+  it('saves selected voice on change', async () => {
+    mockGetVoices.mockReturnValue([{ name: 'Samantha' }] as SpeechSynthesisVoice[])
 
     await act(async () => {
       render(<Popup />)
     })
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /read page/i }))
-    })
-
-    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'TTS_SPEAK_PAGE' })
-  })
-
-  it('updates UI to active state when TTS_STATE_CHANGED arrives', async () => {
-    await act(async () => {
-      render(<Popup />)
-    })
-
-    // Retrieve the message listener registered on chrome.runtime.onMessage
-    const listener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0]
+    fireEvent.click(screen.getByRole('button', { name: /voice settings/i }))
 
     await act(async () => {
-      listener?.({ type: 'TTS_STATE_CHANGED', payload: { state: 'playing' } }, {}, vi.fn())
+      fireEvent.change(screen.getByRole('combobox', { name: /voice/i }), {
+        target: { value: 'Samantha' },
+      })
     })
 
-    expect(screen.getByText(/reading page/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /pause/i })).toBeInTheDocument()
+    expect(mockSetSettings).toHaveBeenCalledWith({ ttsVoice: 'Samantha' })
   })
 
   it('debounces rate slider — setSettings called once after 300ms', async () => {
@@ -130,7 +146,6 @@ describe('Popup', () => {
     fireEvent.click(screen.getByRole('button', { name: /voice settings/i }))
     const rateSlider = screen.getByRole('slider', { name: /speech speed/i })
 
-    // Change rate slider multiple times rapidly
     fireEvent.change(rateSlider, { target: { value: '1.2' } })
     fireEvent.change(rateSlider, { target: { value: '1.4' } })
     fireEvent.change(rateSlider, { target: { value: '1.6' } })
@@ -166,6 +181,67 @@ describe('Popup', () => {
     expect(mockSetSettings).toHaveBeenCalledWith({ ttsPitch: 1.2 })
   })
 
+  // ── TTS actions ───────────────────────────────────────────────────────────
+
+  it('sends TTS_SPEAK_PAGE when Read Page is clicked', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /read page/i }))
+    })
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'TTS_SPEAK_PAGE' })
+  })
+
+  it('swallows sendMessage rejection when Read Page is clicked (catch block)', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('no tab'))
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /read page/i }))
+    })
+
+    // No throw — the catch block swallowed the error
+    expect(screen.getByRole('button', { name: /read page/i })).toBeInTheDocument()
+  })
+
+  it('updates UI to active state when TTS_STATE_CHANGED (playing) arrives', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    const listener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0]
+
+    await act(async () => {
+      listener?.({ type: 'TTS_STATE_CHANGED', payload: { state: 'playing' } }, {}, vi.fn())
+    })
+
+    expect(screen.getByText(/reading page/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /pause/i })).toBeInTheDocument()
+  })
+
+  it('shows Resume button when state is paused', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    const listener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0]
+
+    await act(async () => {
+      listener?.({ type: 'TTS_STATE_CHANGED', payload: { state: 'paused' } }, {}, vi.fn())
+    })
+
+    expect(screen.getByRole('button', { name: /resume/i })).toBeInTheDocument()
+    expect(screen.getByText(/paused/i)).toBeInTheDocument()
+  })
+
   it('sends TTS_ACTION pause when Pause is clicked during playback', async () => {
     vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
 
@@ -186,5 +262,300 @@ describe('Popup', () => {
       type: 'TTS_ACTION',
       payload: { action: 'pause' },
     })
+  })
+
+  it('sends TTS_ACTION stop when Stop is clicked during playback', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    const listener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0]
+    await act(async () => {
+      listener?.({ type: 'TTS_STATE_CHANGED', payload: { state: 'playing' } }, {}, vi.fn())
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /stop reading/i }))
+    })
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: 'TTS_ACTION',
+      payload: { action: 'stop' },
+    })
+  })
+
+  it('sends TTS_ACTION resume when Resume is clicked while paused', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    const listener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0]
+    await act(async () => {
+      listener?.({ type: 'TTS_STATE_CHANGED', payload: { state: 'paused' } }, {}, vi.fn())
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /resume/i }))
+    })
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: 'TTS_ACTION',
+      payload: { action: 'resume' },
+    })
+  })
+
+  it('swallows sendMessage rejection from TTS controls (catch block)', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('no tab'))
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    const listener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0]
+    await act(async () => {
+      listener?.({ type: 'TTS_STATE_CHANGED', payload: { state: 'playing' } }, {}, vi.fn())
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /pause/i }))
+    })
+
+    // No throw — catch block swallowed the error
+    expect(screen.getByRole('button', { name: /pause/i })).toBeInTheDocument()
+  })
+
+  // ── LLM Settings panel ────────────────────────────────────────────────────
+
+  it('expands the LLM settings panel on click', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    expect(screen.getByRole('combobox', { name: /provider/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /reading level/i })).toBeInTheDocument()
+  })
+
+  it('shows "Not configured" status chip when provider is none', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    // Status chip is visible without opening the panel
+    expect(screen.getByText('Not configured')).toBeInTheDocument()
+  })
+
+  it('shows "Ready ✓" status chip when provider is configured with an API key', async () => {
+    mockGetSettings.mockResolvedValue({
+      ...defaultSettings,
+      llmProvider: 'openai',
+      apiKey: 'sk-test',
+    })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    expect(screen.getByText('Ready \u2713')).toBeInTheDocument()
+  })
+
+  it('shows "Ready ✓" for Ollama without an API key', async () => {
+    mockGetSettings.mockResolvedValue({
+      ...defaultSettings,
+      llmProvider: 'ollama',
+      apiKey: '',
+    })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    expect(screen.getByText('Ready \u2713')).toBeInTheDocument()
+  })
+
+  it('saves provider change immediately', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /provider/i }), {
+        target: { value: 'openai' },
+      })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ llmProvider: 'openai' })
+  })
+
+  it('shows API key field when provider is OpenAI', async () => {
+    mockGetSettings.mockResolvedValue({ ...defaultSettings, llmProvider: 'openai' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    expect(screen.getByLabelText(/api key/i)).toBeInTheDocument()
+  })
+
+  it('shows API key field when provider is Anthropic', async () => {
+    mockGetSettings.mockResolvedValue({ ...defaultSettings, llmProvider: 'anthropic' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    expect(screen.getByLabelText(/api key/i)).toBeInTheDocument()
+  })
+
+  it('saves API key change immediately', async () => {
+    mockGetSettings.mockResolvedValue({ ...defaultSettings, llmProvider: 'openai' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/api key/i), { target: { value: 'sk-abc' } })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ apiKey: 'sk-abc' })
+  })
+
+  it('shows Ollama URL and model fields when provider is Ollama', async () => {
+    mockGetSettings.mockResolvedValue({ ...defaultSettings, llmProvider: 'ollama' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    expect(screen.getByLabelText(/ollama url/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/model/i)).toBeInTheDocument()
+  })
+
+  it('saves Ollama URL change immediately', async () => {
+    mockGetSettings.mockResolvedValue({ ...defaultSettings, llmProvider: 'ollama' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/ollama url/i), {
+        target: { value: 'http://localhost:9999' },
+      })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ ollamaUrl: 'http://localhost:9999' })
+  })
+
+  it('saves Ollama model change immediately', async () => {
+    mockGetSettings.mockResolvedValue({ ...defaultSettings, llmProvider: 'ollama' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/model/i), { target: { value: 'mistral' } })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ ollamaModel: 'mistral' })
+  })
+
+  it('saves reading level change immediately', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /reading level/i }), {
+        target: { value: '3' },
+      })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ readingLevel: 3 })
+  })
+
+  it('does not show Ollama fields when provider is OpenAI', async () => {
+    mockGetSettings.mockResolvedValue({ ...defaultSettings, llmProvider: 'openai' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    expect(screen.queryByLabelText(/ollama url/i)).toBeNull()
+    expect(screen.queryByLabelText(/model/i)).toBeNull()
+  })
+
+  it('does not show API key field when provider is Ollama', async () => {
+    mockGetSettings.mockResolvedValue({ ...defaultSettings, llmProvider: 'ollama' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    expect(screen.queryByLabelText(/api key/i)).toBeNull()
+  })
+
+  it('does not show any optional fields when provider is None', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    expect(screen.queryByLabelText(/api key/i)).toBeNull()
+    expect(screen.queryByLabelText(/ollama url/i)).toBeNull()
+    expect(screen.queryByLabelText(/model/i)).toBeNull()
+  })
+
+  it('loads saved LLM settings from storage on mount', async () => {
+    mockGetSettings.mockResolvedValue({
+      ...defaultSettings,
+      llmProvider: 'anthropic',
+      apiKey: 'ant-saved',
+      readingLevel: 8,
+    })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    const providerSelect = screen.getByRole('combobox', {
+      name: /provider/i,
+    }) as HTMLSelectElement
+    expect(providerSelect.value).toBe('anthropic')
+
+    const levelSelect = screen.getByRole('combobox', {
+      name: /reading level/i,
+    }) as HTMLSelectElement
+    expect(levelSelect.value).toBe('8')
   })
 })

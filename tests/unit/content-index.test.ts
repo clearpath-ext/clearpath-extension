@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { TTSState } from '../../src/shared/types'
 
 // vi.hoisted ensures mock factory variables are available when vi.mock is hoisted
-const { mockTts, mockToolbar, mockHighlighter } = vi.hoisted(() => {
+const { mockTts, mockToolbar, mockHighlighter, mockOverlay } = vi.hoisted(() => {
   const mockTts = {
     init: vi.fn(),
     speak: vi.fn().mockResolvedValue(undefined),
@@ -23,12 +24,21 @@ const { mockTts, mockToolbar, mockHighlighter } = vi.hoisted(() => {
     clear: vi.fn(),
     onWordBoundary: vi.fn(),
   }
-  return { mockTts, mockToolbar, mockHighlighter }
+  const mockOverlay = {
+    init: vi.fn(),
+    showLoading: vi.fn(),
+    showResult: vi.fn(),
+    showError: vi.fn(),
+    hide: vi.fn(),
+    destroy: vi.fn(),
+  }
+  return { mockTts, mockToolbar, mockHighlighter, mockOverlay }
 })
 
 vi.mock('../../src/content/tts', () => mockTts)
 vi.mock('../../src/content/toolbar', () => mockToolbar)
 vi.mock('../../src/content/highlighter', () => mockHighlighter)
+vi.mock('../../src/content/overlay', () => mockOverlay)
 
 // Import coordinator after mocks are in place — registers message listener
 import '../../src/content/index'
@@ -39,17 +49,97 @@ type MessageListener = (
   sendResponse: (r: unknown) => void,
 ) => boolean | void
 
-// Capture before any vi.clearAllMocks() runs
+// Capture all listener references before any vi.clearAllMocks() runs.
+// These must be top-level so they execute at module-load time.
 const messageListener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]
   ?.[0] as MessageListener | undefined
+
+// Capture the callbacks that content/index.ts passes to tts.init()
+const ttsInitArgs = mockTts.init.mock.calls[0] as
+  | [(state: TTSState) => void, (charIndex: number, text: string) => void]
+  | undefined
+const capturedOnStateChange = ttsInitArgs?.[0]
+const capturedOnWordBoundary = ttsInitArgs?.[1]
+
+// Capture the callbacks that content/index.ts passes to toolbar.init()
+const capturedToolbarCallbacks = mockToolbar.init.mock.calls[0]?.[0] as
+  | { onPlayPause: () => void; onStop: () => void }
+  | undefined
 
 describe('content/index message handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockTts.speak.mockResolvedValue(undefined)
     mockTts.getState.mockReturnValue('idle')
+    // Ensure sendMessage always returns a promise so .catch() calls don't throw
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
     document.body.innerHTML = ''
   })
+
+  // ── Module-level callbacks ─────────────────────────────────────────────────
+
+  describe('onStateChange (passed to tts.init)', () => {
+    it('hides toolbar and clears highlights when state is idle', () => {
+      capturedOnStateChange?.('idle')
+      expect(mockToolbar.hide).toHaveBeenCalled()
+      expect(mockHighlighter.clear).toHaveBeenCalled()
+    })
+
+    it('shows toolbar and updates state for non-idle states', () => {
+      capturedOnStateChange?.('playing')
+      expect(mockToolbar.show).toHaveBeenCalledWith('playing')
+      expect(mockToolbar.updateState).toHaveBeenCalledWith('playing')
+    })
+
+    it('sends TTS_STATE_CHANGED to the background', () => {
+      capturedOnStateChange?.('playing')
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: 'TTS_STATE_CHANGED',
+        payload: { state: 'playing' },
+      })
+    })
+
+    it('swallows sendMessage rejection (popup may be closed)', async () => {
+      vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('popup closed'))
+      expect(() => capturedOnStateChange?.('playing')).not.toThrow()
+      await new Promise((r) => setTimeout(r, 0))
+    })
+  })
+
+  describe('onWordBoundary (passed to tts.init)', () => {
+    it('forwards charIndex and text to the highlighter', () => {
+      capturedOnWordBoundary?.(5, 'hello world')
+      expect(mockHighlighter.onWordBoundary).toHaveBeenCalledWith(5, 'hello world')
+    })
+  })
+
+  describe('toolbar callbacks (passed to toolbar.init)', () => {
+    it('onPlayPause calls tts.pause() when playing', () => {
+      mockTts.getState.mockReturnValue('playing')
+      capturedToolbarCallbacks?.onPlayPause()
+      expect(mockTts.pause).toHaveBeenCalled()
+    })
+
+    it('onPlayPause calls tts.resume() when paused', () => {
+      mockTts.getState.mockReturnValue('paused')
+      capturedToolbarCallbacks?.onPlayPause()
+      expect(mockTts.resume).toHaveBeenCalled()
+    })
+
+    it('onPlayPause does nothing when idle', () => {
+      mockTts.getState.mockReturnValue('idle')
+      capturedToolbarCallbacks?.onPlayPause()
+      expect(mockTts.pause).not.toHaveBeenCalled()
+      expect(mockTts.resume).not.toHaveBeenCalled()
+    })
+
+    it('onStop calls tts.stop()', () => {
+      capturedToolbarCallbacks?.onStop()
+      expect(mockTts.stop).toHaveBeenCalled()
+    })
+  })
+
+  // ── Message cases ──────────────────────────────────────────────────────────
 
   describe('TTS_SPEAK_SELECTION', () => {
     it('speaks the currently selected text', async () => {
@@ -71,6 +161,20 @@ describe('content/index message handler', () => {
     it('responds with error when no text is selected', () => {
       Object.defineProperty(window, 'getSelection', {
         value: () => ({ toString: () => '   ' }),
+        writable: true,
+        configurable: true,
+      })
+
+      const sendResponse = vi.fn()
+      messageListener?.({ type: 'TTS_SPEAK_SELECTION' }, {}, sendResponse)
+
+      expect(mockTts.speak).not.toHaveBeenCalled()
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: 'No text selected' })
+    })
+
+    it('responds with error when getSelection() returns null', () => {
+      Object.defineProperty(window, 'getSelection', {
+        value: () => null,
         writable: true,
         configurable: true,
       })
@@ -148,6 +252,33 @@ describe('content/index message handler', () => {
     })
   })
 
+  describe('TTS_SPEAK', () => {
+    it('speaks the given text and responds with ok', async () => {
+      const sendResponse = vi.fn()
+      const result = messageListener?.(
+        { type: 'TTS_SPEAK', payload: { text: 'hello from TTS_SPEAK' } },
+        {},
+        sendResponse,
+      )
+      expect(result).toBe(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockTts.speak).toHaveBeenCalledWith('hello from TTS_SPEAK')
+      expect(sendResponse).toHaveBeenCalledWith({ ok: true, data: undefined })
+    })
+
+    it('responds with error when speak rejects', async () => {
+      mockTts.speak.mockRejectedValue(new Error('speak failed'))
+      const sendResponse = vi.fn()
+      messageListener?.(
+        { type: 'TTS_SPEAK', payload: { text: 'hello' } },
+        {},
+        sendResponse,
+      )
+      await new Promise((r) => setTimeout(r, 0))
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: 'Error: speak failed' })
+    })
+  })
+
   describe('TTS_ACTION', () => {
     it('calls tts.pause() for pause action', () => {
       const sendResponse = vi.fn()
@@ -177,6 +308,35 @@ describe('content/index message handler', () => {
       const sendResponse = vi.fn()
       messageListener?.({ type: 'GET_TTS_STATE' }, {}, sendResponse)
       expect(sendResponse).toHaveBeenCalledWith({ ok: true, data: 'playing' })
+    })
+  })
+
+  describe('SIMPLIFY_LOADING', () => {
+    it('calls overlay.showLoading()', () => {
+      messageListener?.({ type: 'SIMPLIFY_LOADING' }, {}, vi.fn())
+      expect(mockOverlay.showLoading).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('SIMPLIFY_RESULT', () => {
+    it('calls overlay.showResult() with the simplified text', () => {
+      messageListener?.(
+        { type: 'SIMPLIFY_RESULT', payload: { simplified: 'easy text' } },
+        {},
+        vi.fn(),
+      )
+      expect(mockOverlay.showResult).toHaveBeenCalledWith('easy text')
+    })
+  })
+
+  describe('SIMPLIFY_ERROR', () => {
+    it('calls overlay.showError() with the error message', () => {
+      messageListener?.(
+        { type: 'SIMPLIFY_ERROR', payload: { error: 'oops' } },
+        {},
+        vi.fn(),
+      )
+      expect(mockOverlay.showError).toHaveBeenCalledWith('oops')
     })
   })
 })

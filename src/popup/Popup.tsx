@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getSettings, setSettings } from '../lib/storage'
-import type { Message, TTSAction, TTSState } from '../shared/types'
+import type { Message, TTSAction, TTSState, LLMProviderName, ReadingLevel } from '../shared/types'
 
 export function Popup() {
   const [ttsState, setTtsState] = useState<TTSState>('idle')
@@ -10,6 +10,12 @@ export function Popup() {
   const [pitch, setPitch] = useState(1.0)
   const [loading, setLoading] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [showLLM, setShowLLM] = useState(false)
+  const [llmProvider, setLlmProvider] = useState<LLMProviderName>('none')
+  const [apiKey, setApiKey] = useState('')
+  const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434')
+  const [ollamaModel, setOllamaModel] = useState('llama3.2')
+  const [readingLevel, setReadingLevel] = useState<ReadingLevel>(5)
   const rateDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pitchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -20,6 +26,11 @@ export function Popup() {
       setSelectedVoice(settings.ttsVoice)
       setRate(settings.ttsRate)
       setPitch(settings.ttsPitch)
+      setLlmProvider(settings.llmProvider)
+      setApiKey(settings.apiKey)
+      setOllamaUrl(settings.ollamaUrl)
+      setOllamaModel(settings.ollamaModel)
+      setReadingLevel(settings.readingLevel)
 
       try {
         const response = await chrome.runtime.sendMessage({
@@ -101,6 +112,31 @@ export function Popup() {
     pitchDebounce.current = setTimeout(() => setSettings({ ttsPitch: value }), 300)
   }
 
+  const handleLlmProviderChange = async (value: LLMProviderName) => {
+    setLlmProvider(value)
+    await setSettings({ llmProvider: value })
+  }
+
+  const handleApiKeyChange = async (value: string) => {
+    setApiKey(value)
+    await setSettings({ apiKey: value })
+  }
+
+  const handleOllamaUrlChange = async (value: string) => {
+    setOllamaUrl(value)
+    await setSettings({ ollamaUrl: value })
+  }
+
+  const handleOllamaModelChange = async (value: string) => {
+    setOllamaModel(value)
+    await setSettings({ ollamaModel: value })
+  }
+
+  const handleReadingLevelChange = async (value: ReadingLevel) => {
+    setReadingLevel(value)
+    await setSettings({ readingLevel: value })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-24">
@@ -110,6 +146,7 @@ export function Popup() {
   }
 
   const isActive = ttsState !== 'idle'
+  const llmReady = llmProvider !== 'none' && (apiKey !== '' || llmProvider === 'ollama')
 
   return (
     <div className="flex flex-col">
@@ -119,7 +156,7 @@ export function Popup() {
           <span className="text-white text-xs font-bold">CP</span>
         </div>
         <span className="font-semibold text-sm text-white tracking-wide">ClearPath</span>
-        <span className="ml-auto text-xs text-slate-500 font-medium">v0.1</span>
+        <span className="ml-auto text-xs text-slate-500 font-medium">v0.2</span>
       </div>
 
       {/* Read Aloud section */}
@@ -300,6 +337,137 @@ export function Popup() {
                 <span>Low</span>
                 <span>High</span>
               </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* LLM settings */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowLLM((o) => !o)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold
+            text-slate-400 uppercase tracking-widest hover:text-slate-300 transition-colors
+            focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-2 focus-visible:ring-brand-blue"
+          aria-expanded={showLLM}
+        >
+          <span>LLM Settings</span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                llmReady
+                  ? 'bg-green-900/40 text-green-400'
+                  : 'bg-slate-800 text-slate-500'
+              }`}
+            >
+              {llmReady ? 'Ready \u2713' : 'Not configured'}
+            </span>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className={`transition-transform ${showLLM ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+            >
+              <path d="M2 4l4 4 4-4" />
+            </svg>
+          </div>
+        </button>
+
+        {showLLM && (
+          <div className="px-4 pb-4 space-y-3">
+            {/* Provider selector */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1" htmlFor="cp-llm-provider">
+                Provider
+              </label>
+              <select
+                id="cp-llm-provider"
+                value={llmProvider}
+                onChange={(e) => handleLlmProviderChange(e.target.value as LLMProviderName)}
+                className="w-full bg-navy-800 border border-white/10 rounded-md px-2 py-1.5
+                  text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              >
+                <option value="none">None</option>
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="ollama">Ollama</option>
+              </select>
+            </div>
+
+            {/* API key — shown for openai / anthropic */}
+            {(llmProvider === 'openai' || llmProvider === 'anthropic') && (
+              <div>
+                <label className="block text-xs text-slate-400 mb-1" htmlFor="cp-api-key">
+                  API Key
+                </label>
+                <input
+                  id="cp-api-key"
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => handleApiKeyChange(e.target.value)}
+                  placeholder="sk-…"
+                  className="w-full bg-navy-800 border border-white/10 rounded-md px-2 py-1.5
+                    text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                />
+              </div>
+            )}
+
+            {/* Ollama URL — shown for ollama */}
+            {llmProvider === 'ollama' && (
+              <div>
+                <label className="block text-xs text-slate-400 mb-1" htmlFor="cp-ollama-url">
+                  Ollama URL
+                </label>
+                <input
+                  id="cp-ollama-url"
+                  type="url"
+                  value={ollamaUrl}
+                  onChange={(e) => handleOllamaUrlChange(e.target.value)}
+                  placeholder="http://localhost:11434"
+                  className="w-full bg-navy-800 border border-white/10 rounded-md px-2 py-1.5
+                    text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                />
+              </div>
+            )}
+
+            {/* Ollama model — shown for ollama */}
+            {llmProvider === 'ollama' && (
+              <div>
+                <label className="block text-xs text-slate-400 mb-1" htmlFor="cp-ollama-model">
+                  Model
+                </label>
+                <input
+                  id="cp-ollama-model"
+                  type="text"
+                  value={ollamaModel}
+                  onChange={(e) => handleOllamaModelChange(e.target.value)}
+                  placeholder="llama3.2"
+                  className="w-full bg-navy-800 border border-white/10 rounded-md px-2 py-1.5
+                    text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                />
+              </div>
+            )}
+
+            {/* Reading level */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1" htmlFor="cp-reading-level">
+                Reading Level (Simplify)
+              </label>
+              <select
+                id="cp-reading-level"
+                value={readingLevel}
+                onChange={(e) => handleReadingLevelChange(Number(e.target.value) as ReadingLevel)}
+                className="w-full bg-navy-800 border border-white/10 rounded-md px-2 py-1.5
+                  text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              >
+                <option value={3}>Grade 3</option>
+                <option value={5}>Grade 5</option>
+                <option value={8}>Grade 8</option>
+              </select>
             </div>
           </div>
         )}

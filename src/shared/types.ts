@@ -16,6 +16,7 @@ export interface Settings {
   llmProvider: LLMProviderName
   apiKey: string
   ollamaUrl: string
+  ollamaModel: string
   readingLevel: ReadingLevel
   symbolsEnabled: boolean
   symbolDensity: SymbolDensity
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   llmProvider: 'none',
   apiKey: '',
   ollamaUrl: 'http://localhost:11434',
+  ollamaModel: 'llama3.2',
   readingLevel: 5,
   symbolsEnabled: false,
   symbolDensity: 'key',
@@ -50,7 +52,9 @@ export type Message =
   | { type: 'TTS_STATE_CHANGED'; payload: { state: TTSState } }
   | { type: 'GET_TTS_STATE' }
   | { type: 'SIMPLIFY_TEXT'; payload: { text: string; level: ReadingLevel } }
+  | { type: 'SIMPLIFY_LOADING' }
   | { type: 'SIMPLIFY_RESULT'; payload: { simplified: string } }
+  | { type: 'SIMPLIFY_ERROR'; payload: { error: string } }
   | { type: 'TOGGLE_READING_MODE'; payload: { enabled: boolean } }
   | { type: 'SUMMARIZE_PAGE' }
 

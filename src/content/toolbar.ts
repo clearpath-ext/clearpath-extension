@@ -161,6 +161,7 @@ export function destroy(): void {
 export function updateState(state: TTSState): void {
   if (!shadow) return
   const btn = shadow.getElementById('cp-playpause') as HTMLButtonElement | null
+  /* v8 ignore next -- btn always exists: init() creates it before shadow is ever set */
   if (!btn) return
 
   if (state === 'playing') {

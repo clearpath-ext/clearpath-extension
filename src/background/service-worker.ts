@@ -1,6 +1,9 @@
 import type { Message } from '../shared/types'
+import { getSettings } from '../lib/storage'
+import { createProvider } from '../lib/llm'
 
 const MENU_READ_ALOUD = 'clearpath-read-aloud'
+const MENU_SIMPLIFY = 'clearpath-simplify'
 
 // ── Install ───────────────────────────────────────────────────────────────────
 
@@ -12,6 +15,11 @@ chrome.runtime.onInstalled.addListener(() => {
       title: 'Read Aloud',
       contexts: ['selection'],
     })
+    chrome.contextMenus.create({
+      id: MENU_SIMPLIFY,
+      title: 'Simplify',
+      contexts: ['selection'],
+    })
   })
 })
 
@@ -20,6 +28,30 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === MENU_READ_ALOUD && tab?.id != null) {
     chrome.tabs.sendMessage(tab.id, { type: 'TTS_SPEAK_SELECTION' } satisfies Message)
+  }
+
+  if (info.menuItemId === MENU_SIMPLIFY && tab?.id != null) {
+    const tabId = tab.id
+    const text = info.selectionText?.trim()
+    if (!text) return
+
+    chrome.tabs.sendMessage(tabId, { type: 'SIMPLIFY_LOADING' } satisfies Message)
+
+    void (async () => {
+      try {
+        const settings = await getSettings()
+        const simplified = await createProvider(settings).simplify(text, settings.readingLevel)
+        chrome.tabs.sendMessage(tabId, {
+          type: 'SIMPLIFY_RESULT',
+          payload: { simplified },
+        } satisfies Message)
+      } catch (e) {
+        chrome.tabs.sendMessage(tabId, {
+          type: 'SIMPLIFY_ERROR',
+          payload: { error: String(e) },
+        } satisfies Message)
+      }
+    })()
   }
 })
 

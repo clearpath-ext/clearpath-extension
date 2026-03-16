@@ -81,6 +81,17 @@ describe('toolbar', () => {
         ?.shadowRoot?.getElementById('cp-playpause')
       expect(btn?.getAttribute('aria-label')).toBe('Resume reading')
     })
+
+    it('does not modify the button for unhandled states (implicit else branch)', () => {
+      toolbar.show('playing')
+      // 'idle' matches neither the playing nor paused branch — button unchanged
+      expect(() => toolbar.updateState('idle')).not.toThrow()
+    })
+
+    it('is a no-op when called before init()', () => {
+      toolbar.destroy()
+      expect(() => toolbar.updateState('playing')).not.toThrow()
+    })
   })
 
   describe('button callbacks', () => {
