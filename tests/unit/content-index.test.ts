@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { TTSState } from '../../src/shared/types'
 
 // vi.hoisted ensures mock factory variables are available when vi.mock is hoisted
-const { mockTts, mockToolbar, mockHighlighter, mockOverlay } = vi.hoisted(() => {
+const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader } = vi.hoisted(() => {
   const mockTts = {
     init: vi.fn(),
     speak: vi.fn().mockResolvedValue(undefined),
@@ -21,7 +21,9 @@ const { mockTts, mockToolbar, mockHighlighter, mockOverlay } = vi.hoisted(() => 
   }
   const mockHighlighter = {
     init: vi.fn(),
+    attach: vi.fn(),
     clear: vi.fn(),
+    detach: vi.fn(),
     onWordBoundary: vi.fn(),
   }
   const mockOverlay = {
@@ -32,13 +34,22 @@ const { mockTts, mockToolbar, mockHighlighter, mockOverlay } = vi.hoisted(() => 
     hide: vi.fn(),
     destroy: vi.fn(),
   }
-  return { mockTts, mockToolbar, mockHighlighter, mockOverlay }
+  const mockReader = {
+    init: vi.fn(),
+    isOpen: vi.fn().mockReturnValue(false),
+    open: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn(),
+    getSpokenText: vi.fn().mockReturnValue(''),
+    getContentEl: vi.fn().mockReturnValue(null),
+  }
+  return { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader }
 })
 
 vi.mock('../../src/content/tts', () => mockTts)
 vi.mock('../../src/content/toolbar', () => mockToolbar)
 vi.mock('../../src/content/highlighter', () => mockHighlighter)
 vi.mock('../../src/content/overlay', () => mockOverlay)
+vi.mock('../../src/content/reader', () => mockReader)
 
 // Import coordinator after mocks are in place — registers message listener
 import '../../src/content/index'
@@ -66,11 +77,20 @@ const capturedToolbarCallbacks = mockToolbar.init.mock.calls[0]?.[0] as
   | { onPlayPause: () => void; onStop: () => void }
   | undefined
 
+// Capture the callbacks that content/index.ts passes to reader.init()
+const capturedReaderCallbacks = mockReader.init.mock.calls[0]?.[0] as
+  | { onClose: () => void }
+  | undefined
+
 describe('content/index message handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockTts.speak.mockResolvedValue(undefined)
     mockTts.getState.mockReturnValue('idle')
+    mockReader.isOpen.mockReturnValue(false)
+    mockReader.open.mockResolvedValue(undefined)
+    mockReader.getSpokenText.mockReturnValue('')
+    mockReader.getContentEl.mockReturnValue(null)
     // Ensure sendMessage always returns a promise so .catch() calls don't throw
     vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
     document.body.innerHTML = ''
@@ -139,6 +159,25 @@ describe('content/index message handler', () => {
     })
   })
 
+  describe('reader callbacks (passed to reader.init)', () => {
+    it('onClose stops TTS, detaches highlighter, and sends READER_STATE_CHANGED false', async () => {
+      vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+      capturedReaderCallbacks?.onClose()
+      expect(mockTts.stop).toHaveBeenCalled()
+      expect(mockHighlighter.detach).toHaveBeenCalled()
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: 'READER_STATE_CHANGED',
+        payload: { enabled: false },
+      })
+    })
+
+    it('onClose swallows sendMessage rejection', async () => {
+      vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('popup closed'))
+      expect(() => capturedReaderCallbacks?.onClose()).not.toThrow()
+      await new Promise((r) => setTimeout(r, 0))
+    })
+  })
+
   // ── Message cases ──────────────────────────────────────────────────────────
 
   describe('TTS_SPEAK_SELECTION', () => {
@@ -188,7 +227,7 @@ describe('content/index message handler', () => {
   })
 
   describe('TTS_SPEAK_PAGE', () => {
-    it('extracts visible text and speaks it', async () => {
+    it('extracts visible text and speaks it when reader is closed', async () => {
       document.body.innerHTML = '<p>Hello <span>world</span></p>'
 
       const sendResponse = vi.fn()
@@ -249,6 +288,31 @@ describe('content/index message handler', () => {
       document.body.innerHTML = '<p>text</p>'
       const result = messageListener?.({ type: 'TTS_SPEAK_PAGE' }, {}, vi.fn())
       expect(result).toBe(true)
+    })
+
+    it('uses reader text and attaches highlighter when reader is open', async () => {
+      mockReader.isOpen.mockReturnValue(true)
+      mockReader.getSpokenText.mockReturnValue('reader spoken text')
+      const mockContentEl = document.createElement('div')
+      mockReader.getContentEl.mockReturnValue(mockContentEl)
+
+      messageListener?.({ type: 'TTS_SPEAK_PAGE' }, {}, vi.fn())
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(mockTts.speak).toHaveBeenCalledWith('reader spoken text')
+      expect(mockHighlighter.attach).toHaveBeenCalledWith(mockContentEl, 'reader spoken text')
+    })
+
+    it('skips highlighter.attach when reader is open but contentEl is null', async () => {
+      mockReader.isOpen.mockReturnValue(true)
+      mockReader.getSpokenText.mockReturnValue('reader text')
+      mockReader.getContentEl.mockReturnValue(null)
+
+      messageListener?.({ type: 'TTS_SPEAK_PAGE' }, {}, vi.fn())
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(mockTts.speak).toHaveBeenCalledWith('reader text')
+      expect(mockHighlighter.attach).not.toHaveBeenCalled()
     })
   })
 
@@ -337,6 +401,59 @@ describe('content/index message handler', () => {
         vi.fn(),
       )
       expect(mockOverlay.showError).toHaveBeenCalledWith('oops')
+    })
+  })
+
+  describe('TOGGLE_READING_MODE', () => {
+    it('closes reader when it is open', () => {
+      mockReader.isOpen.mockReturnValue(true)
+      const sendResponse = vi.fn()
+      messageListener?.({ type: 'TOGGLE_READING_MODE' }, {}, sendResponse)
+      expect(mockReader.close).toHaveBeenCalled()
+      expect(sendResponse).toHaveBeenCalledWith({ ok: true, data: undefined })
+    })
+
+    it('opens reader and sends READER_STATE_CHANGED(true) when reader is closed', async () => {
+      mockReader.isOpen.mockReturnValue(false)
+      vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+      const sendResponse = vi.fn()
+      messageListener?.({ type: 'TOGGLE_READING_MODE' }, {}, sendResponse)
+
+      expect(sendResponse).toHaveBeenCalledWith({ ok: true, data: undefined })
+
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(mockReader.open).toHaveBeenCalled()
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: 'READER_STATE_CHANGED',
+        payload: { enabled: true },
+      })
+    })
+
+    it('swallows sendMessage rejection after reader opens', async () => {
+      mockReader.isOpen.mockReturnValue(false)
+      vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('popup closed'))
+
+      messageListener?.({ type: 'TOGGLE_READING_MODE' }, {}, vi.fn())
+      await new Promise((r) => setTimeout(r, 0))
+      // No uncaught rejection
+    })
+  })
+
+  describe('GET_READER_STATE', () => {
+    it('returns false when reader is closed', () => {
+      mockReader.isOpen.mockReturnValue(false)
+      const sendResponse = vi.fn()
+      messageListener?.({ type: 'GET_READER_STATE' }, {}, sendResponse)
+      expect(sendResponse).toHaveBeenCalledWith({ ok: true, data: false })
+    })
+
+    it('returns true when reader is open', () => {
+      mockReader.isOpen.mockReturnValue(true)
+      const sendResponse = vi.fn()
+      messageListener?.({ type: 'GET_READER_STATE' }, {}, sendResponse)
+      expect(sendResponse).toHaveBeenCalledWith({ ok: true, data: true })
     })
   })
 })

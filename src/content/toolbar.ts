@@ -94,6 +94,7 @@ const ICON_STOP = `<svg width="14" height="14" viewBox="0 0 14 14" fill="current
 export function init(cbs: ToolbarCallbacks): void {
   if (host) return // already initialised — prevents duplicate hosts on re-init
 
+  console.debug('[ClearPath] Toolbar: initialized')
   callbacks = cbs
 
   host = document.createElement('div')
@@ -142,12 +143,14 @@ export function init(cbs: ToolbarCallbacks): void {
 
 export function show(state: TTSState): void {
   if (!host) return
+  console.debug('[ClearPath] Toolbar: show —', state)
   host.style.display = 'block'
   updateState(state)
 }
 
 export function hide(): void {
   if (!host) return
+  console.debug('[ClearPath] Toolbar: hide')
   host.style.display = 'none'
 }
 

@@ -1,19 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 
 const { mockGetSettings, mockSetSettings } = vi.hoisted(() => {
-  const mockGetSettings = vi.fn().mockResolvedValue({
-    ttsVoice: '',
-    ttsRate: 1.0,
-    ttsPitch: 1.0,
-    llmProvider: 'none',
-    apiKey: '',
-    ollamaUrl: 'http://localhost:11434',
-    ollamaModel: 'llama3.2',
-    readingLevel: 5,
-    symbolsEnabled: false,
-    symbolDensity: 'key',
-  })
+  const mockGetSettings = vi.fn()
   const mockSetSettings = vi.fn().mockResolvedValue(undefined)
   return { mockGetSettings, mockSetSettings }
 })
@@ -49,13 +38,19 @@ const defaultSettings = {
   readingLevel: 5 as const,
   symbolsEnabled: false,
   symbolDensity: 'key' as const,
+  readerFont: 'system' as const,
+  readerFontSize: 18,
+  readerLineHeight: 1.75,
+  readerTheme: 'light' as const,
+  readerColumnWidth: 'medium' as const,
 }
 
 describe('Popup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSettings.mockResolvedValue(defaultSettings)
+    mockGetSettings.mockResolvedValue({ ...defaultSettings })
     mockGetVoices.mockReturnValue([])
+    // Default: GET_TTS_STATE → no content; GET_READER_STATE → no content
     vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({ ok: false, error: 'no content' })
   })
 
@@ -79,24 +74,35 @@ describe('Popup', () => {
   })
 
   it('applies initial TTS state returned by GET_TTS_STATE on mount', async () => {
-    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({ ok: true, data: 'playing' })
+    vi.mocked(chrome.runtime.sendMessage)
+      .mockResolvedValueOnce({ ok: true, data: 'playing' })  // GET_TTS_STATE
+      .mockResolvedValueOnce({ ok: false, error: 'no reader' }) // GET_READER_STATE
 
     await act(async () => {
       render(<Popup />)
     })
 
-    // response?.ok was true → setTtsState('playing') was called
     expect(screen.getByRole('button', { name: /pause/i })).toBeInTheDocument()
   })
 
-  // ── Settings load catch block (sendMessage rejects on chrome:// pages) ───
+  it('applies initial reader state from GET_READER_STATE on mount', async () => {
+    vi.mocked(chrome.runtime.sendMessage)
+      .mockResolvedValueOnce({ ok: false, error: 'no tts' })  // GET_TTS_STATE
+      .mockResolvedValueOnce({ ok: true, data: true })          // GET_READER_STATE
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    expect(screen.getByRole('button', { name: /exit reading mode/i })).toBeInTheDocument()
+    expect(screen.getByText('Active')).toBeInTheDocument()
+  })
 
   it('handles sendMessage rejection gracefully during settings load', async () => {
     vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('not available'))
     await act(async () => {
       render(<Popup />)
     })
-    // Popup still renders — the catch block swallowed the error
     expect(screen.getByRole('button', { name: /read page/i })).toBeInTheDocument()
   })
 
@@ -208,7 +214,6 @@ describe('Popup', () => {
       fireEvent.click(screen.getByRole('button', { name: /read page/i }))
     })
 
-    // No throw — the catch block swallowed the error
     expect(screen.getByRole('button', { name: /read page/i })).toBeInTheDocument()
   })
 
@@ -324,8 +329,195 @@ describe('Popup', () => {
       fireEvent.click(screen.getByRole('button', { name: /pause/i }))
     })
 
-    // No throw — catch block swallowed the error
     expect(screen.getByRole('button', { name: /pause/i })).toBeInTheDocument()
+  })
+
+  // ── Reading Mode toggle ───────────────────────────────────────────────────
+
+  it('shows "Enter Reading Mode" button when reader is disabled', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+    expect(screen.getByRole('button', { name: /enter reading mode/i })).toBeInTheDocument()
+  })
+
+  it('sends TOGGLE_READING_MODE when the toggle button is clicked', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /enter reading mode/i }))
+    })
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'TOGGLE_READING_MODE' })
+  })
+
+  it('optimistically toggles the button label after click', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /enter reading mode/i }))
+    })
+
+    expect(screen.getByRole('button', { name: /exit reading mode/i })).toBeInTheDocument()
+  })
+
+  it('swallows sendMessage rejection from reading mode toggle (catch block)', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('no tab'))
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /enter reading mode/i }))
+    })
+
+    // No throw — error was swallowed; toggle did not fire since sendMessage rejected
+    expect(screen.getByRole('button', { name: /enter reading mode/i })).toBeInTheDocument()
+  })
+
+  it('updates reader state when READER_STATE_CHANGED arrives', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    const listener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0]
+
+    await act(async () => {
+      listener?.({ type: 'READER_STATE_CHANGED', payload: { enabled: true } }, {}, vi.fn())
+    })
+
+    expect(screen.getByRole('button', { name: /exit reading mode/i })).toBeInTheDocument()
+    expect(screen.getByText('Active')).toBeInTheDocument()
+  })
+
+  it('shows "Exit Reading Mode" button when reader is enabled via loaded state', async () => {
+    vi.mocked(chrome.runtime.sendMessage)
+      .mockResolvedValueOnce({ ok: false })   // GET_TTS_STATE
+      .mockResolvedValueOnce({ ok: true, data: true }) // GET_READER_STATE
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    expect(screen.getByRole('button', { name: /exit reading mode/i })).toBeInTheDocument()
+  })
+
+  // ── Reader Settings panel ─────────────────────────────────────────────────
+
+  it('expands the Reader Settings panel on click', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /reader settings/i }))
+
+    expect(screen.getByRole('combobox', { name: /^font$/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /font size/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /line height/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /theme/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /column width/i })).toBeInTheDocument()
+  })
+
+  it('loads saved reader font from storage on mount', async () => {
+    mockGetSettings.mockResolvedValue({ ...defaultSettings, readerFont: 'dyslexic' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /reader settings/i }))
+
+    const fontSelect = screen.getByRole('combobox', { name: /^font$/i }) as HTMLSelectElement
+    expect(fontSelect.value).toBe('dyslexic')
+  })
+
+  it('saves reader font change immediately', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /reader settings/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /^font$/i }), {
+        target: { value: 'serif' },
+      })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ readerFont: 'serif' })
+  })
+
+  it('saves reader font size change immediately', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /reader settings/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /font size/i }), {
+        target: { value: '22' },
+      })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ readerFontSize: 22 })
+  })
+
+  it('saves reader line height change immediately', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /reader settings/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /line height/i }), {
+        target: { value: '2' },
+      })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ readerLineHeight: 2 })
+  })
+
+  it('saves reader theme change immediately', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /reader settings/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /theme/i }), {
+        target: { value: 'dark' },
+      })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ readerTheme: 'dark' })
+  })
+
+  it('saves reader column width change immediately', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /reader settings/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /column width/i }), {
+        target: { value: 'wide' },
+      })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ readerColumnWidth: 'wide' })
   })
 
   // ── LLM Settings panel ────────────────────────────────────────────────────
@@ -346,7 +538,6 @@ describe('Popup', () => {
       render(<Popup />)
     })
 
-    // Status chip is visible without opening the panel
     expect(screen.getByText('Not configured')).toBeInTheDocument()
   })
 

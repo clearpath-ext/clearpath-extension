@@ -44,7 +44,7 @@ describe('service-worker', () => {
       expect(installedListener).toBeTypeOf('function')
     })
 
-    it('clears existing menus then creates both Read Aloud and Simplify context menu items', () => {
+    it('clears existing menus then creates Read Aloud, Simplify, and Reading Mode items', () => {
       installedListener?.({})
       expect(chrome.contextMenus.removeAll).toHaveBeenCalledOnce()
       expect(chrome.contextMenus.create).toHaveBeenCalledWith({
@@ -56,6 +56,11 @@ describe('service-worker', () => {
         id: 'clearpath-simplify',
         title: 'Simplify',
         contexts: ['selection'],
+      })
+      expect(chrome.contextMenus.create).toHaveBeenCalledWith({
+        id: 'clearpath-reading-mode',
+        title: 'Toggle Reading Mode',
+        contexts: ['page', 'selection'],
       })
     })
   })
@@ -69,6 +74,14 @@ describe('service-worker', () => {
       expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'TTS_SPEAK_SELECTION' })
     })
 
+    it('sends TOGGLE_READING_MODE to the clicked tab', () => {
+      contextMenuClickListener?.(
+        { menuItemId: 'clearpath-reading-mode' } as chrome.contextMenus.OnClickData,
+        { id: 42 } as chrome.tabs.Tab,
+      )
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'TOGGLE_READING_MODE' })
+    })
+
     it('does nothing if the menu item ID does not match', () => {
       contextMenuClickListener?.(
         { menuItemId: 'some-other-menu' } as chrome.contextMenus.OnClickData,
@@ -77,9 +90,17 @@ describe('service-worker', () => {
       expect(chrome.tabs.sendMessage).not.toHaveBeenCalled()
     })
 
-    it('does nothing if tab id is missing', () => {
+    it('does nothing for read-aloud if tab id is missing', () => {
       contextMenuClickListener?.(
         { menuItemId: 'clearpath-read-aloud' } as chrome.contextMenus.OnClickData,
+        {} as chrome.tabs.Tab,
+      )
+      expect(chrome.tabs.sendMessage).not.toHaveBeenCalled()
+    })
+
+    it('does nothing for reading-mode if tab id is missing', () => {
+      contextMenuClickListener?.(
+        { menuItemId: 'clearpath-reading-mode' } as chrome.contextMenus.OnClickData,
         {} as chrome.tabs.Tab,
       )
       expect(chrome.tabs.sendMessage).not.toHaveBeenCalled()
@@ -211,6 +232,43 @@ describe('service-worker', () => {
       })
     })
 
+    it('forwards TOGGLE_READING_MODE to the active tab', async () => {
+      vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 10 }] as chrome.tabs.Tab[])
+      vi.mocked(chrome.tabs.sendMessage).mockImplementation(
+        (_id, _msg, cb?: (r: unknown) => void) => {
+          cb?.({ ok: true, data: undefined })
+          return undefined as unknown as number
+        },
+      )
+
+      const result = messageListener?.({ type: 'TOGGLE_READING_MODE' }, {}, vi.fn())
+      expect(result).toBe(true)
+
+      await new Promise((r) => setTimeout(r, 0))
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+        10,
+        { type: 'TOGGLE_READING_MODE' },
+        expect.any(Function),
+      )
+    })
+
+    it('forwards GET_READER_STATE to the active tab', async () => {
+      vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 11 }] as chrome.tabs.Tab[])
+      vi.mocked(chrome.tabs.sendMessage).mockImplementation(
+        (_id, _msg, cb?: (r: unknown) => void) => {
+          cb?.({ ok: true, data: false })
+          return undefined as unknown as number
+        },
+      )
+
+      const sendResponse = vi.fn()
+      const result = messageListener?.({ type: 'GET_READER_STATE' }, {}, sendResponse)
+      expect(result).toBe(true)
+
+      await new Promise((r) => setTimeout(r, 0))
+      expect(sendResponse).toHaveBeenCalledWith({ ok: true, data: false })
+    })
+
     it('forwards TTS_STATE_CHANGED to the runtime (popup)', () => {
       vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
 
@@ -237,7 +295,35 @@ describe('service-worker', () => {
         ),
       ).not.toThrow()
 
-      // Let the rejected promise settle without uncaught rejection
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    it('forwards READER_STATE_CHANGED to the runtime (popup)', () => {
+      vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+      messageListener?.(
+        { type: 'READER_STATE_CHANGED', payload: { enabled: true } },
+        {},
+        vi.fn(),
+      )
+
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: 'READER_STATE_CHANGED',
+        payload: { enabled: true },
+      })
+    })
+
+    it('swallows sendMessage rejection for READER_STATE_CHANGED (popup may be closed)', async () => {
+      vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('popup closed'))
+
+      expect(() =>
+        messageListener?.(
+          { type: 'READER_STATE_CHANGED', payload: { enabled: false } },
+          {},
+          vi.fn(),
+        ),
+      ).not.toThrow()
+
       await new Promise((r) => setTimeout(r, 0))
     })
   })

@@ -35,8 +35,8 @@ Reads any selected text or full page content using your browser's built-in text-
 ### ✅ Simplify *(v0.2.0)*
 Select any text, right-click, and choose **Simplify**. The text is rewritten in plain English at your chosen reading level (Grade 3, 5, or 8) using an LLM. Works with your own OpenAI or Anthropic API key, or locally with Ollama — your text never touches our servers.
 
-### 🗓 Reading Mode *(planned)*
-Strips a page down to its main content. Apply custom typography: font family (including OpenDyslexic), size, line spacing, letter spacing. Choose from six color themes. Saved per-site.
+### ✅ Reading Mode *(v0.3.0)*
+Strips a page down to its main content using Mozilla Readability. Apply custom typography: font family (including OpenDyslexic), size, and line height. Choose from four color themes (light, dark, sepia, high-contrast). Words are highlighted in sync with Read Aloud when both are active together.
 
 ### 🗓 Symbol Overlay *(planned)*
 Displays AAC-style pictogram symbols above words on any page, powered by the open ARASAAC symbol library. Configurable density: key words only, or all supported words. Designed for AAC users and the people who support them.
@@ -95,7 +95,7 @@ Simplify requires an LLM API key, or a local Ollama instance. Your text goes dir
 | UI | React 18 + Tailwind CSS (popup); vanilla DOM + Shadow DOM (content scripts) |
 | TTS | Web Speech API |
 | LLM | OpenAI / Anthropic / Ollama (direct from browser — no proxy) |
-| Testing | Vitest + jsdom + Testing Library (160 tests, 100% coverage) |
+| Testing | Vitest + jsdom + Testing Library (241 tests, 100% coverage) |
 | CI/CD | GitHub Actions |
 | Standard | Manifest V3 |
 | Package Manager | pnpm |
@@ -113,7 +113,8 @@ src/
 │   ├── tts.ts              # Text-to-speech controller
 │   ├── toolbar.ts          # Floating playback toolbar (Shadow DOM)
 │   ├── overlay.ts          # Simplification result panel (Shadow DOM)
-│   └── highlighter.ts      # Word highlight stub (Phase 3)
+│   ├── reader.ts           # Full-viewport reading mode panel (Shadow DOM)
+│   └── highlighter.ts      # Word-level TTS highlight (binary search over char positions)
 ├── lib/
 │   ├── llm.ts              # LLM provider abstraction (OpenAI / Anthropic / Ollama)
 │   └── storage.ts          # chrome.storage.sync wrappers
@@ -138,6 +139,15 @@ Quick start:
 ---
 
 ## Changelog
+
+### v0.3.0 — Reading Mode *(2026-04-05)*
+- Full-viewport reading mode panel powered by Mozilla Readability (Shadow DOM)
+- Four color themes: light, dark, sepia, high-contrast
+- Typography controls: font family (System, Serif, Sans, OpenDyslexic), size, line height, column width
+- OpenDyslexic font bundled — no external requests
+- Word-by-word TTS highlight when reading mode + Read Aloud are active together
+- Reading mode toggle in popup and via right-click context menu
+- 100% test coverage (241 tests across 10 files)
 
 ### v0.2.0 — LLM Simplification *(2026-03-16)*
 - Right-click selected text → **Simplify** context menu item

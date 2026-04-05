@@ -13,6 +13,7 @@ export function init(
 ): void {
   stateCallback = onState
   wordCallback = onWord
+  console.debug('[ClearPath] TTS: initialized')
 }
 
 export function getState(): TTSState {
@@ -20,6 +21,7 @@ export function getState(): TTSState {
 }
 
 function setState(state: TTSState): void {
+  console.debug('[ClearPath] TTS: state →', state)
   currentState = state
   stateCallback?.(state)
 }
@@ -35,6 +37,8 @@ export async function speak(text: string): Promise<void> {
 
   // A newer speak() call arrived while we were awaiting settings — bail out
   if (version !== speakVersion) return
+
+  console.debug('[ClearPath] TTS: speaking', trimmed.length, 'chars — rate:', settings.ttsRate, 'pitch:', settings.ttsPitch, 'voice:', settings.ttsVoice || '(default)')
 
   utterance = new SpeechSynthesisUtterance(trimmed)
   utterance.rate = settings.ttsRate
@@ -53,7 +57,7 @@ export async function speak(text: string): Promise<void> {
   }
   utterance.onerror = (e) => {
     if (e.error !== 'interrupted' && e.error !== 'canceled') {
-      console.error('[ClearPath TTS] Speech error:', e.error)
+      console.error('[ClearPath] TTS error:', e.error)
     }
     utterance = null
     setState('idle')
@@ -71,17 +75,22 @@ export async function speak(text: string): Promise<void> {
 
 export function pause(): void {
   if (currentState === 'playing') {
+    console.debug('[ClearPath] TTS: pause')
     window.speechSynthesis.pause()
   }
 }
 
 export function resume(): void {
   if (currentState === 'paused') {
+    console.debug('[ClearPath] TTS: resume')
     window.speechSynthesis.resume()
   }
 }
 
 export function stop(): void {
+  if (currentState !== 'idle') {
+    console.debug('[ClearPath] TTS: stop')
+  }
   window.speechSynthesis.cancel()
   utterance = null
   if (currentState !== 'idle') {

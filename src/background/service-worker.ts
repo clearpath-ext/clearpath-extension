@@ -4,10 +4,12 @@ import { createProvider } from '../lib/llm'
 
 const MENU_READ_ALOUD = 'clearpath-read-aloud'
 const MENU_SIMPLIFY = 'clearpath-simplify'
+const MENU_READING_MODE = 'clearpath-reading-mode'
 
 // ── Install ───────────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
+  console.debug('[ClearPath] Service worker: onInstalled — registering context menus')
   // Remove first to avoid duplicate-ID errors on extension update
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
@@ -20,14 +22,25 @@ chrome.runtime.onInstalled.addListener(() => {
       title: 'Simplify',
       contexts: ['selection'],
     })
+    chrome.contextMenus.create({
+      id: MENU_READING_MODE,
+      title: 'Toggle Reading Mode',
+      contexts: ['page', 'selection'],
+    })
   })
 })
 
 // ── Context menu ──────────────────────────────────────────────────────────────
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  console.debug('[ClearPath] Context menu clicked:', info.menuItemId, 'tab:', tab?.id)
+
   if (info.menuItemId === MENU_READ_ALOUD && tab?.id != null) {
     chrome.tabs.sendMessage(tab.id, { type: 'TTS_SPEAK_SELECTION' } satisfies Message)
+  }
+
+  if (info.menuItemId === MENU_READING_MODE && tab?.id != null) {
+    chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_READING_MODE' } satisfies Message)
   }
 
   if (info.menuItemId === MENU_SIMPLIFY && tab?.id != null) {
@@ -59,6 +72,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 chrome.runtime.onMessage.addListener(
   (message: Message, _sender, sendResponse) => {
+    console.debug('[ClearPath] Service worker: message received —', message.type)
+
     // Popup → content script: TTS control
     if (
       message.type === 'TTS_ACTION' ||
@@ -75,8 +90,21 @@ chrome.runtime.onMessage.addListener(
       return true
     }
 
+    // Popup → content script: toggle / query reading mode
+    if (message.type === 'TOGGLE_READING_MODE' || message.type === 'GET_READER_STATE') {
+      forwardToActiveTab(message, sendResponse)
+      return true
+    }
+
     // Content script → popup: TTS state changed
     if (message.type === 'TTS_STATE_CHANGED') {
+      chrome.runtime.sendMessage(message).catch(() => {
+        // Popup may not be open — ignore
+      })
+    }
+
+    // Content script → popup: reader state changed
+    if (message.type === 'READER_STATE_CHANGED') {
       chrome.runtime.sendMessage(message).catch(() => {
         // Popup may not be open — ignore
       })

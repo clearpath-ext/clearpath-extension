@@ -22,6 +22,7 @@ const chromeMock = {
     onInstalled: {
       addListener: vi.fn(),
     },
+    getURL: vi.fn().mockReturnValue('chrome-extension://test/'),
     lastError: null as { message: string } | null,
   },
   contextMenus: {

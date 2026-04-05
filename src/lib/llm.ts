@@ -45,10 +45,12 @@ class OpenAIProvider implements LLMProvider {
   constructor(private apiKey: string) {}
 
   simplify(text: string, level: ReadingLevel): Promise<string> {
+    console.debug('[ClearPath] LLM (OpenAI): simplify — level:', level, 'chars:', text.length)
     return this.call(simplifyPrompt(text, level))
   }
 
   summarize(text: string): Promise<string> {
+    console.debug('[ClearPath] LLM (OpenAI): summarize — chars:', text.length)
     return this.call(summarizePrompt(text))
   }
 
@@ -76,10 +78,12 @@ class AnthropicProvider implements LLMProvider {
   constructor(private apiKey: string) {}
 
   simplify(text: string, level: ReadingLevel): Promise<string> {
+    console.debug('[ClearPath] LLM (Anthropic): simplify — level:', level, 'chars:', text.length)
     return this.call(simplifyPrompt(text, level))
   }
 
   summarize(text: string): Promise<string> {
+    console.debug('[ClearPath] LLM (Anthropic): summarize — chars:', text.length)
     return this.call(summarizePrompt(text))
   }
 
@@ -110,10 +114,12 @@ class OllamaProvider implements LLMProvider {
   ) {}
 
   simplify(text: string, level: ReadingLevel): Promise<string> {
+    console.debug('[ClearPath] LLM (Ollama): simplify — model:', this.model, 'level:', level, 'chars:', text.length)
     return this.call(simplifyPrompt(text, level))
   }
 
   summarize(text: string): Promise<string> {
+    console.debug('[ClearPath] LLM (Ollama): summarize — model:', this.model, 'chars:', text.length)
     return this.call(summarizePrompt(text))
   }
 

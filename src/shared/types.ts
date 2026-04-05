@@ -9,6 +9,10 @@ export type ReadingLevel = 3 | 5 | 8
 export type LLMProviderName = 'openai' | 'anthropic' | 'ollama' | 'none'
 export type SymbolDensity = 'key' | 'all'
 
+export type ReaderFont = 'system' | 'serif' | 'sans' | 'dyslexic'
+export type ReaderTheme = 'light' | 'dark' | 'sepia' | 'contrast'
+export type ReaderColumnWidth = 'narrow' | 'medium' | 'wide'
+
 export interface Settings {
   ttsVoice: string
   ttsRate: number // 0.5 – 2.0
@@ -20,6 +24,12 @@ export interface Settings {
   readingLevel: ReadingLevel
   symbolsEnabled: boolean
   symbolDensity: SymbolDensity
+  // Reading Mode
+  readerFont: ReaderFont
+  readerFontSize: number // 16 | 18 | 20 | 22 | 24
+  readerLineHeight: number // 1.5 | 1.75 | 2.0 | 2.5
+  readerTheme: ReaderTheme
+  readerColumnWidth: ReaderColumnWidth
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,6 +43,12 @@ export const DEFAULT_SETTINGS: Settings = {
   readingLevel: 5,
   symbolsEnabled: false,
   symbolDensity: 'key',
+  // Reading Mode
+  readerFont: 'system',
+  readerFontSize: 18,
+  readerLineHeight: 1.75,
+  readerTheme: 'light',
+  readerColumnWidth: 'medium',
 }
 
 // ── Profiles ──────────────────────────────────────────────────────────────────
@@ -55,7 +71,9 @@ export type Message =
   | { type: 'SIMPLIFY_LOADING' }
   | { type: 'SIMPLIFY_RESULT'; payload: { simplified: string } }
   | { type: 'SIMPLIFY_ERROR'; payload: { error: string } }
-  | { type: 'TOGGLE_READING_MODE'; payload: { enabled: boolean } }
+  | { type: 'TOGGLE_READING_MODE' }
+  | { type: 'GET_READER_STATE' }
+  | { type: 'READER_STATE_CHANGED'; payload: { enabled: boolean } }
   | { type: 'SUMMARIZE_PAGE' }
 
 export type MessageResponse<T = void> =

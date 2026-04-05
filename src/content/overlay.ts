@@ -156,6 +156,7 @@ export function init(): void {
 
 export function showLoading(): void {
   if (!host || !contentEl) return
+  console.debug('[ClearPath] Overlay: showLoading')
 
   const wrap = document.createElement('div')
   wrap.className = 'spinner-wrap'
@@ -176,6 +177,7 @@ export function showLoading(): void {
 
 export function showResult(text: string): void {
   if (!host || !contentEl) return
+  console.debug('[ClearPath] Overlay: showResult —', text.length, 'chars')
 
   const p = document.createElement('p')
   p.className = 'result-text'
@@ -204,6 +206,7 @@ export function showResult(text: string): void {
 
 export function showError(msg: string): void {
   if (!host || !contentEl) return
+  console.debug('[ClearPath] Overlay: showError —', msg)
 
   const p = document.createElement('p')
   p.className = 'error-text'
