@@ -30,6 +30,11 @@ export interface Settings {
   readerLineHeight: number // 1.5 | 1.75 | 2.0 | 2.5
   readerTheme: ReaderTheme
   readerColumnWidth: ReaderColumnWidth
+  // Focus Tools
+  rulerEnabled: boolean
+  rulerColor: string // hex color
+  focusEnabled: boolean
+  complexityEnabled: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -49,6 +54,11 @@ export const DEFAULT_SETTINGS: Settings = {
   readerLineHeight: 1.75,
   readerTheme: 'light',
   readerColumnWidth: 'medium',
+  // Focus Tools
+  rulerEnabled: false,
+  rulerColor: '#FFD700',
+  focusEnabled: false,
+  complexityEnabled: false,
 }
 
 // ── Profiles ──────────────────────────────────────────────────────────────────
@@ -75,6 +85,11 @@ export type Message =
   | { type: 'GET_READER_STATE' }
   | { type: 'READER_STATE_CHANGED'; payload: { enabled: boolean } }
   | { type: 'SUMMARIZE_PAGE' }
+  | { type: 'TOGGLE_RULER' }
+  | { type: 'TOGGLE_FOCUS' }
+  | { type: 'TOGGLE_COMPLEXITY' }
+  | { type: 'GET_FOCUS_TOOLS_STATE' }
+  | { type: 'FOCUS_TOOLS_STATE_CHANGED'; payload: { rulerEnabled: boolean; focusEnabled: boolean; complexityEnabled: boolean } }
 
 export type MessageResponse<T = void> =
   | { ok: true; data: T }

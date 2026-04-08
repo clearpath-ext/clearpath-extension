@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { TTSState } from '../../src/shared/types'
 
 // vi.hoisted ensures mock factory variables are available when vi.mock is hoisted
-const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader } = vi.hoisted(() => {
+const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRuler, mockFocus, mockComplexity, mockStorage } = vi.hoisted(() => {
   const mockTts = {
     init: vi.fn(),
     speak: vi.fn().mockResolvedValue(undefined),
@@ -42,7 +42,36 @@ const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader } = vi.ho
     getSpokenText: vi.fn().mockReturnValue(''),
     getContentEl: vi.fn().mockReturnValue(null),
   }
-  return { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader }
+  const mockRuler = {
+    init: vi.fn(),
+    setEnabled: vi.fn(),
+    setColor: vi.fn(),
+    isEnabled: vi.fn().mockReturnValue(false),
+  }
+  const mockFocus = {
+    init: vi.fn(),
+    attach: vi.fn(),
+    detach: vi.fn(),
+    setEnabled: vi.fn(),
+    isEnabled: vi.fn().mockReturnValue(false),
+  }
+  const mockComplexity = {
+    init: vi.fn(),
+    attach: vi.fn(),
+    detach: vi.fn(),
+    setEnabled: vi.fn(),
+    isEnabled: vi.fn().mockReturnValue(false),
+  }
+  const mockStorage = {
+    getSettings: vi.fn().mockResolvedValue({
+      rulerEnabled: false,
+      rulerColor: '#FFD700',
+      focusEnabled: false,
+      complexityEnabled: false,
+    }),
+    setSettings: vi.fn().mockResolvedValue(undefined),
+  }
+  return { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRuler, mockFocus, mockComplexity, mockStorage }
 })
 
 vi.mock('../../src/content/tts', () => mockTts)
@@ -50,6 +79,10 @@ vi.mock('../../src/content/toolbar', () => mockToolbar)
 vi.mock('../../src/content/highlighter', () => mockHighlighter)
 vi.mock('../../src/content/overlay', () => mockOverlay)
 vi.mock('../../src/content/reader', () => mockReader)
+vi.mock('../../src/content/ruler', () => mockRuler)
+vi.mock('../../src/content/focus', () => mockFocus)
+vi.mock('../../src/content/complexity', () => mockComplexity)
+vi.mock('../../src/lib/storage', () => mockStorage)
 
 // Import coordinator after mocks are in place — registers message listener
 import '../../src/content/index'
@@ -91,6 +124,10 @@ describe('content/index message handler', () => {
     mockReader.open.mockResolvedValue(undefined)
     mockReader.getSpokenText.mockReturnValue('')
     mockReader.getContentEl.mockReturnValue(null)
+    mockRuler.isEnabled.mockReturnValue(false)
+    mockFocus.isEnabled.mockReturnValue(false)
+    mockComplexity.isEnabled.mockReturnValue(false)
+    mockStorage.setSettings.mockResolvedValue(undefined)
     // Ensure sendMessage always returns a promise so .catch() calls don't throw
     vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
     document.body.innerHTML = ''
@@ -160,11 +197,13 @@ describe('content/index message handler', () => {
   })
 
   describe('reader callbacks (passed to reader.init)', () => {
-    it('onClose stops TTS, detaches highlighter, and sends READER_STATE_CHANGED false', async () => {
+    it('onClose stops TTS, detaches highlighter/focus/complexity, and sends READER_STATE_CHANGED false', async () => {
       vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
       capturedReaderCallbacks?.onClose()
       expect(mockTts.stop).toHaveBeenCalled()
       expect(mockHighlighter.detach).toHaveBeenCalled()
+      expect(mockFocus.detach).toHaveBeenCalled()
+      expect(mockComplexity.detach).toHaveBeenCalled()
       expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
         type: 'READER_STATE_CHANGED',
         payload: { enabled: false },
@@ -431,6 +470,33 @@ describe('content/index message handler', () => {
       })
     })
 
+    it('attaches focus and complexity when enabled on reader open', async () => {
+      mockReader.isOpen.mockReturnValue(false)
+      mockFocus.isEnabled.mockReturnValue(true)
+      mockComplexity.isEnabled.mockReturnValue(true)
+      const contentEl = document.createElement('div')
+      mockReader.getContentEl.mockReturnValue(contentEl)
+
+      messageListener?.({ type: 'TOGGLE_READING_MODE' }, {}, vi.fn())
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(mockFocus.attach).toHaveBeenCalledWith(contentEl)
+      expect(mockComplexity.attach).toHaveBeenCalledWith(contentEl)
+    })
+
+    it('skips attach when contentEl is null on reader open', async () => {
+      mockReader.isOpen.mockReturnValue(false)
+      mockFocus.isEnabled.mockReturnValue(true)
+      mockComplexity.isEnabled.mockReturnValue(true)
+      mockReader.getContentEl.mockReturnValue(null)
+
+      messageListener?.({ type: 'TOGGLE_READING_MODE' }, {}, vi.fn())
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(mockFocus.attach).not.toHaveBeenCalled()
+      expect(mockComplexity.attach).not.toHaveBeenCalled()
+    })
+
     it('swallows sendMessage rejection after reader opens', async () => {
       mockReader.isOpen.mockReturnValue(false)
       vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('popup closed'))
@@ -454,6 +520,123 @@ describe('content/index message handler', () => {
       const sendResponse = vi.fn()
       messageListener?.({ type: 'GET_READER_STATE' }, {}, sendResponse)
       expect(sendResponse).toHaveBeenCalledWith({ ok: true, data: true })
+    })
+  })
+
+  describe('TOGGLE_RULER', () => {
+    it('toggles ruler on and saves to storage', async () => {
+      mockRuler.isEnabled.mockReturnValue(false)
+      const sendResponse = vi.fn()
+      const result = messageListener?.({ type: 'TOGGLE_RULER' }, {}, sendResponse)
+      expect(result).toBe(true)
+      expect(mockRuler.setEnabled).toHaveBeenCalledWith(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockStorage.setSettings).toHaveBeenCalledWith({ rulerEnabled: true })
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'FOCUS_TOOLS_STATE_CHANGED' }),
+      )
+    })
+
+    it('toggles ruler off', async () => {
+      mockRuler.isEnabled.mockReturnValue(true)
+      const sendResponse = vi.fn()
+      messageListener?.({ type: 'TOGGLE_RULER' }, {}, sendResponse)
+      expect(mockRuler.setEnabled).toHaveBeenCalledWith(false)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockStorage.setSettings).toHaveBeenCalledWith({ rulerEnabled: false })
+    })
+  })
+
+  describe('TOGGLE_FOCUS', () => {
+    it('enables focus and attaches to reader when reader is open', async () => {
+      mockFocus.isEnabled.mockReturnValue(false)
+      mockReader.isOpen.mockReturnValue(true)
+      const contentEl = document.createElement('div')
+      mockReader.getContentEl.mockReturnValue(contentEl)
+
+      const sendResponse = vi.fn()
+      const result = messageListener?.({ type: 'TOGGLE_FOCUS' }, {}, sendResponse)
+      expect(result).toBe(true)
+      expect(mockFocus.setEnabled).toHaveBeenCalledWith(true)
+      expect(mockFocus.attach).toHaveBeenCalledWith(contentEl)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockStorage.setSettings).toHaveBeenCalledWith({ focusEnabled: true })
+    })
+
+    it('does not attach when reader is closed on enable', async () => {
+      mockFocus.isEnabled.mockReturnValue(false)
+      mockReader.isOpen.mockReturnValue(false)
+
+      messageListener?.({ type: 'TOGGLE_FOCUS' }, {}, vi.fn())
+      expect(mockFocus.attach).not.toHaveBeenCalled()
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    it('disables focus and detaches', async () => {
+      mockFocus.isEnabled.mockReturnValue(true)
+      messageListener?.({ type: 'TOGGLE_FOCUS' }, {}, vi.fn())
+      expect(mockFocus.setEnabled).toHaveBeenCalledWith(false)
+      expect(mockFocus.detach).toHaveBeenCalled()
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockStorage.setSettings).toHaveBeenCalledWith({ focusEnabled: false })
+    })
+
+    it('sends FOCUS_TOOLS_STATE_CHANGED after save', async () => {
+      mockFocus.isEnabled.mockReturnValue(false)
+      messageListener?.({ type: 'TOGGLE_FOCUS' }, {}, vi.fn())
+      await new Promise((r) => setTimeout(r, 0))
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'FOCUS_TOOLS_STATE_CHANGED' }),
+      )
+    })
+  })
+
+  describe('TOGGLE_COMPLEXITY', () => {
+    it('enables complexity and attaches to reader when reader is open', async () => {
+      mockComplexity.isEnabled.mockReturnValue(false)
+      mockReader.isOpen.mockReturnValue(true)
+      const contentEl = document.createElement('div')
+      mockReader.getContentEl.mockReturnValue(contentEl)
+
+      const result = messageListener?.({ type: 'TOGGLE_COMPLEXITY' }, {}, vi.fn())
+      expect(result).toBe(true)
+      expect(mockComplexity.setEnabled).toHaveBeenCalledWith(true)
+      expect(mockComplexity.attach).toHaveBeenCalledWith(contentEl)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockStorage.setSettings).toHaveBeenCalledWith({ complexityEnabled: true })
+    })
+
+    it('disables complexity and detaches', async () => {
+      mockComplexity.isEnabled.mockReturnValue(true)
+      messageListener?.({ type: 'TOGGLE_COMPLEXITY' }, {}, vi.fn())
+      expect(mockComplexity.setEnabled).toHaveBeenCalledWith(false)
+      expect(mockComplexity.detach).toHaveBeenCalled()
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockStorage.setSettings).toHaveBeenCalledWith({ complexityEnabled: false })
+    })
+
+    it('does not attach when reader is closed on enable', async () => {
+      mockComplexity.isEnabled.mockReturnValue(false)
+      mockReader.isOpen.mockReturnValue(false)
+
+      messageListener?.({ type: 'TOGGLE_COMPLEXITY' }, {}, vi.fn())
+      expect(mockComplexity.attach).not.toHaveBeenCalled()
+      await new Promise((r) => setTimeout(r, 0))
+    })
+  })
+
+  describe('GET_FOCUS_TOOLS_STATE', () => {
+    it('returns current state of all three tools', () => {
+      mockRuler.isEnabled.mockReturnValue(true)
+      mockFocus.isEnabled.mockReturnValue(false)
+      mockComplexity.isEnabled.mockReturnValue(true)
+
+      const sendResponse = vi.fn()
+      messageListener?.({ type: 'GET_FOCUS_TOOLS_STATE' }, {}, sendResponse)
+      expect(sendResponse).toHaveBeenCalledWith({
+        ok: true,
+        data: { rulerEnabled: true, focusEnabled: false, complexityEnabled: true },
+      })
     })
   })
 })

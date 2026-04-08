@@ -41,10 +41,10 @@ Strips a page down to its main content using Mozilla Readability. Apply custom t
 ### 🗓 Symbol Overlay *(planned)*
 Displays AAC-style pictogram symbols above words on any page, powered by the open ARASAAC symbol library. Configurable density: key words only, or all supported words. Designed for AAC users and the people who support them.
 
-### 🗓 Focus Tools *(planned)*
-- Reading ruler — a colored band that follows your cursor, helping you track lines
-- Paragraph focus — dims everything on the page except where you're reading
-- Word complexity — underlines hard words and shows simpler alternatives on hover
+### ✅ Focus Tools *(v0.4.0)*
+- **Reading ruler** — a semi-transparent colored band that follows your cursor to help you track lines
+- **Paragraph focus** — dims all other content in reading mode, keeping just the paragraph you're on fully visible
+- **Word complexity** — underlines hard words with a dotted amber line and shows a simpler alternative on hover, sourced from plainlanguage.gov
 
 ### 🗓 Vocabulary Support *(planned)*
 Double-click any word for an instant plain-English definition. No API required — powered by an embedded open dictionary.
@@ -95,7 +95,7 @@ Simplify requires an LLM API key, or a local Ollama instance. Your text goes dir
 | UI | React 18 + Tailwind CSS (popup); vanilla DOM + Shadow DOM (content scripts) |
 | TTS | Web Speech API |
 | LLM | OpenAI / Anthropic / Ollama (direct from browser — no proxy) |
-| Testing | Vitest + jsdom + Testing Library (241 tests, 100% coverage) |
+| Testing | Vitest + jsdom + Testing Library (310 tests, 100% coverage) |
 | CI/CD | GitHub Actions |
 | Standard | Manifest V3 |
 | Package Manager | pnpm |
@@ -114,12 +114,15 @@ src/
 │   ├── toolbar.ts          # Floating playback toolbar (Shadow DOM)
 │   ├── overlay.ts          # Simplification result panel (Shadow DOM)
 │   ├── reader.ts           # Full-viewport reading mode panel (Shadow DOM)
-│   └── highlighter.ts      # Word-level TTS highlight (binary search over char positions)
+│   ├── highlighter.ts      # Word-level TTS highlight (binary search over char positions)
+│   ├── ruler.ts            # Reading ruler (Shadow DOM band tracking mousemove)
+│   ├── focus.ts            # Paragraph focus (dims reader content except hovered block)
+│   └── complexity.ts       # Word complexity (plainlanguage.gov map + hover tooltips)
 ├── lib/
 │   ├── llm.ts              # LLM provider abstraction (OpenAI / Anthropic / Ollama)
 │   └── storage.ts          # chrome.storage.sync wrappers
 ├── popup/
-│   ├── Popup.tsx           # React popup: Read Aloud + Voice + LLM settings
+│   ├── Popup.tsx           # React popup: Read Aloud + Voice + LLM + Reader + Focus Tools
 │   └── index.tsx
 └── shared/
     └── types.ts            # Message union, Settings interface, defaults
@@ -139,6 +142,13 @@ Quick start:
 ---
 
 ## Changelog
+
+### v0.4.0 — Focus Tools *(2026-04-08)*
+- Reading ruler: configurable-color band that follows the cursor across any page
+- Paragraph focus: dims all reader content except the hovered block element
+- Word complexity: ~130-word plainlanguage.gov map, dotted underline + hover tooltip
+- All three tools togglable from popup and right-click context menu; state persisted across page loads
+- 100% test coverage (310 tests across 13 files)
 
 ### v0.3.0 — Reading Mode *(2026-04-05)*
 - Full-viewport reading mode panel powered by Mozilla Readability (Shadow DOM)

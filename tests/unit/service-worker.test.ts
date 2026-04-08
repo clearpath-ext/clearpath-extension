@@ -44,7 +44,7 @@ describe('service-worker', () => {
       expect(installedListener).toBeTypeOf('function')
     })
 
-    it('clears existing menus then creates Read Aloud, Simplify, and Reading Mode items', () => {
+    it('clears existing menus then creates all six menu items', () => {
       installedListener?.({})
       expect(chrome.contextMenus.removeAll).toHaveBeenCalledOnce()
       expect(chrome.contextMenus.create).toHaveBeenCalledWith({
@@ -60,6 +60,21 @@ describe('service-worker', () => {
       expect(chrome.contextMenus.create).toHaveBeenCalledWith({
         id: 'clearpath-reading-mode',
         title: 'Toggle Reading Mode',
+        contexts: ['page', 'selection'],
+      })
+      expect(chrome.contextMenus.create).toHaveBeenCalledWith({
+        id: 'clearpath-ruler',
+        title: 'Toggle Reading Ruler',
+        contexts: ['page', 'selection'],
+      })
+      expect(chrome.contextMenus.create).toHaveBeenCalledWith({
+        id: 'clearpath-focus',
+        title: 'Toggle Paragraph Focus',
+        contexts: ['page', 'selection'],
+      })
+      expect(chrome.contextMenus.create).toHaveBeenCalledWith({
+        id: 'clearpath-complexity',
+        title: 'Toggle Word Complexity',
         contexts: ['page', 'selection'],
       })
     })
@@ -80,6 +95,30 @@ describe('service-worker', () => {
         { id: 42 } as chrome.tabs.Tab,
       )
       expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'TOGGLE_READING_MODE' })
+    })
+
+    it('sends TOGGLE_RULER to the clicked tab', () => {
+      contextMenuClickListener?.(
+        { menuItemId: 'clearpath-ruler' } as chrome.contextMenus.OnClickData,
+        { id: 42 } as chrome.tabs.Tab,
+      )
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'TOGGLE_RULER' })
+    })
+
+    it('sends TOGGLE_FOCUS to the clicked tab', () => {
+      contextMenuClickListener?.(
+        { menuItemId: 'clearpath-focus' } as chrome.contextMenus.OnClickData,
+        { id: 42 } as chrome.tabs.Tab,
+      )
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'TOGGLE_FOCUS' })
+    })
+
+    it('sends TOGGLE_COMPLEXITY to the clicked tab', () => {
+      contextMenuClickListener?.(
+        { menuItemId: 'clearpath-complexity' } as chrome.contextMenus.OnClickData,
+        { id: 42 } as chrome.tabs.Tab,
+      )
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'TOGGLE_COMPLEXITY' })
     })
 
     it('does nothing if the menu item ID does not match', () => {
@@ -319,6 +358,96 @@ describe('service-worker', () => {
       expect(() =>
         messageListener?.(
           { type: 'READER_STATE_CHANGED', payload: { enabled: false } },
+          {},
+          vi.fn(),
+        ),
+      ).not.toThrow()
+
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    it('forwards TOGGLE_RULER to the active tab', async () => {
+      vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 20 }] as chrome.tabs.Tab[])
+      vi.mocked(chrome.tabs.sendMessage).mockImplementation(
+        (_id, _msg, cb?: (r: unknown) => void) => {
+          cb?.({ ok: true, data: undefined })
+          return undefined as unknown as number
+        },
+      )
+
+      const result = messageListener?.({ type: 'TOGGLE_RULER' }, {}, vi.fn())
+      expect(result).toBe(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(20, { type: 'TOGGLE_RULER' }, expect.any(Function))
+    })
+
+    it('forwards TOGGLE_FOCUS to the active tab', async () => {
+      vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 21 }] as chrome.tabs.Tab[])
+      vi.mocked(chrome.tabs.sendMessage).mockImplementation(
+        (_id, _msg, cb?: (r: unknown) => void) => {
+          cb?.({ ok: true, data: undefined })
+          return undefined as unknown as number
+        },
+      )
+
+      const result = messageListener?.({ type: 'TOGGLE_FOCUS' }, {}, vi.fn())
+      expect(result).toBe(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(21, { type: 'TOGGLE_FOCUS' }, expect.any(Function))
+    })
+
+    it('forwards TOGGLE_COMPLEXITY to the active tab', async () => {
+      vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 22 }] as chrome.tabs.Tab[])
+      vi.mocked(chrome.tabs.sendMessage).mockImplementation(
+        (_id, _msg, cb?: (r: unknown) => void) => {
+          cb?.({ ok: true, data: undefined })
+          return undefined as unknown as number
+        },
+      )
+
+      const result = messageListener?.({ type: 'TOGGLE_COMPLEXITY' }, {}, vi.fn())
+      expect(result).toBe(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(22, { type: 'TOGGLE_COMPLEXITY' }, expect.any(Function))
+    })
+
+    it('forwards GET_FOCUS_TOOLS_STATE to the active tab', async () => {
+      vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 23 }] as chrome.tabs.Tab[])
+      vi.mocked(chrome.tabs.sendMessage).mockImplementation(
+        (_id, _msg, cb?: (r: unknown) => void) => {
+          cb?.({ ok: true, data: { rulerEnabled: false, focusEnabled: false, complexityEnabled: false } })
+          return undefined as unknown as number
+        },
+      )
+
+      const sendResponse = vi.fn()
+      const result = messageListener?.({ type: 'GET_FOCUS_TOOLS_STATE' }, {}, sendResponse)
+      expect(result).toBe(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ ok: true }))
+    })
+
+    it('forwards FOCUS_TOOLS_STATE_CHANGED to the runtime (popup)', () => {
+      vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+      messageListener?.(
+        { type: 'FOCUS_TOOLS_STATE_CHANGED', payload: { rulerEnabled: true, focusEnabled: false, complexityEnabled: false } },
+        {},
+        vi.fn(),
+      )
+
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: 'FOCUS_TOOLS_STATE_CHANGED',
+        payload: { rulerEnabled: true, focusEnabled: false, complexityEnabled: false },
+      })
+    })
+
+    it('swallows sendMessage rejection for FOCUS_TOOLS_STATE_CHANGED', async () => {
+      vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('popup closed'))
+
+      expect(() =>
+        messageListener?.(
+          { type: 'FOCUS_TOOLS_STATE_CHANGED', payload: { rulerEnabled: false, focusEnabled: false, complexityEnabled: false } },
           {},
           vi.fn(),
         ),

@@ -274,6 +274,44 @@ function buildCSS(settings: Settings): string {
     .cp-theme-sepia    .cp-word.cp-active { background-color: rgba(180, 120, 60, 0.3); }
     .cp-theme-dark     .cp-word.cp-active { background-color: rgba(91, 155, 248, 0.4); }
     .cp-theme-contrast .cp-word.cp-active { background-color: rgba(255, 255, 0, 0.4); color: #000; }
+
+    /* ── Paragraph focus ── */
+    .cp-body.cp-focus-active > * {
+      opacity: 0.2;
+      transition: opacity 0.15s;
+    }
+    .cp-body.cp-focus-active > .cp-focused {
+      opacity: 1;
+    }
+
+    /* ── Word complexity ── */
+    .cp-complex {
+      text-decoration: underline dotted #F59E0B;
+      text-underline-offset: 3px;
+      cursor: help;
+      position: relative;
+    }
+    .cp-theme-contrast .cp-complex { text-decoration-color: #FFD700; }
+    .cp-complex::after {
+      content: attr(data-simpler);
+      position: absolute;
+      bottom: calc(100% + 5px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e1e2e;
+      color: #e2e8f0;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.78em;
+      font-family: system-ui, -apple-system, sans-serif;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 10;
+    }
+    .cp-complex:hover::after { opacity: 1; }
+    .cp-theme-contrast .cp-complex::after { background: #333; color: #ffff00; }
   `
 }
 

@@ -3,6 +3,10 @@ import * as toolbar from './toolbar'
 import * as highlighter from './highlighter'
 import * as overlay from './overlay'
 import * as reader from './reader'
+import * as ruler from './ruler'
+import * as focus from './focus'
+import * as complexity from './complexity'
+import { getSettings, setSettings } from '../lib/storage'
 import type { Message, TTSState } from '../shared/types'
 
 // ── Module init ───────────────────────────────────────────────────────────────
@@ -46,12 +50,27 @@ reader.init({
   onClose() {
     tts.stop()
     highlighter.detach()
+    focus.detach()
+    complexity.detach()
     // Notify popup that reading mode is now off
     chrome.runtime.sendMessage({
       type: 'READER_STATE_CHANGED',
       payload: { enabled: false },
     } satisfies Message).catch(() => {})
   },
+})
+ruler.init()
+focus.init()
+complexity.init()
+
+// Restore persisted focus tool states
+void getSettings().then((s) => {
+  console.debug('[ClearPath] Content script: restoring focus tools — ruler:', s.rulerEnabled, 'focus:', s.focusEnabled, 'complexity:', s.complexityEnabled)
+  ruler.setColor(s.rulerColor)
+  /* v8 ignore next -- true branch not reachable at module-import time in tests */
+  if (s.rulerEnabled) ruler.setEnabled(true)
+  focus.setEnabled(s.focusEnabled)
+  complexity.setEnabled(s.complexityEnabled)
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -81,6 +100,17 @@ function extractPageText(): string {
     if (t) parts.push(t)
   }
   return parts.join(' ')
+}
+
+function notifyFocusToolsChanged(): void {
+  chrome.runtime.sendMessage({
+    type: 'FOCUS_TOOLS_STATE_CHANGED',
+    payload: {
+      rulerEnabled: ruler.isEnabled(),
+      focusEnabled: focus.isEnabled(),
+      complexityEnabled: complexity.isEnabled(),
+    },
+  } satisfies Message).catch(() => {})
 }
 
 // ── Message listener ──────────────────────────────────────────────────────────
@@ -161,6 +191,11 @@ chrome.runtime.onMessage.addListener(
           reader.close()
         } else {
           void reader.open().then(() => {
+            const contentEl = reader.getContentEl()
+            if (contentEl) {
+              if (focus.isEnabled()) focus.attach(contentEl)
+              if (complexity.isEnabled()) complexity.attach(contentEl)
+            }
             chrome.runtime.sendMessage({
               type: 'READER_STATE_CHANGED',
               payload: { enabled: true },
@@ -173,6 +208,60 @@ chrome.runtime.onMessage.addListener(
 
       case 'GET_READER_STATE': {
         sendResponse({ ok: true, data: reader.isOpen() })
+        break
+      }
+
+      case 'TOGGLE_RULER': {
+        const newRuler = !ruler.isEnabled()
+        ruler.setEnabled(newRuler)
+        void setSettings({ rulerEnabled: newRuler }).then(() => {
+          notifyFocusToolsChanged()
+          sendResponse({ ok: true, data: { rulerEnabled: newRuler, focusEnabled: focus.isEnabled(), complexityEnabled: complexity.isEnabled() } })
+        })
+        return true
+      }
+
+      case 'TOGGLE_FOCUS': {
+        const newFocus = !focus.isEnabled()
+        focus.setEnabled(newFocus)
+        if (newFocus && reader.isOpen()) {
+          const contentEl = reader.getContentEl()
+          if (contentEl) focus.attach(contentEl)
+        } else if (!newFocus) {
+          focus.detach()
+        }
+        void setSettings({ focusEnabled: newFocus }).then(() => {
+          notifyFocusToolsChanged()
+          sendResponse({ ok: true, data: { rulerEnabled: ruler.isEnabled(), focusEnabled: newFocus, complexityEnabled: complexity.isEnabled() } })
+        })
+        return true
+      }
+
+      case 'TOGGLE_COMPLEXITY': {
+        const newComplexity = !complexity.isEnabled()
+        complexity.setEnabled(newComplexity)
+        if (newComplexity && reader.isOpen()) {
+          const contentEl = reader.getContentEl()
+          if (contentEl) complexity.attach(contentEl)
+        } else if (!newComplexity) {
+          complexity.detach()
+        }
+        void setSettings({ complexityEnabled: newComplexity }).then(() => {
+          notifyFocusToolsChanged()
+          sendResponse({ ok: true, data: { rulerEnabled: ruler.isEnabled(), focusEnabled: focus.isEnabled(), complexityEnabled: newComplexity } })
+        })
+        return true
+      }
+
+      case 'GET_FOCUS_TOOLS_STATE': {
+        sendResponse({
+          ok: true,
+          data: {
+            rulerEnabled: ruler.isEnabled(),
+            focusEnabled: focus.isEnabled(),
+            complexityEnabled: complexity.isEnabled(),
+          },
+        })
         break
       }
     }

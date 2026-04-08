@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ClearPath",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The web, on your terms. Text simplification, read aloud, reading mode, and AAC symbol overlay for any webpage.",
   "permissions": [
     "storage",

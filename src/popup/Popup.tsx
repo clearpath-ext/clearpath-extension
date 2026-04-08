@@ -11,6 +11,12 @@ import type {
   ReaderColumnWidth,
 } from '../shared/types'
 
+interface FocusToolsState {
+  rulerEnabled: boolean
+  focusEnabled: boolean
+  complexityEnabled: boolean
+}
+
 export function Popup() {
   const [ttsState, setTtsState] = useState<TTSState>('idle')
   const [readerEnabled, setReaderEnabled] = useState(false)
@@ -22,6 +28,11 @@ export function Popup() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showLLM, setShowLLM] = useState(false)
   const [showReader, setShowReader] = useState(false)
+  const [showFocusTools, setShowFocusTools] = useState(false)
+  const [rulerEnabled, setRulerEnabled] = useState(false)
+  const [rulerColor, setRulerColor] = useState('#FFD700')
+  const [focusEnabled, setFocusEnabled] = useState(false)
+  const [complexityEnabled, setComplexityEnabled] = useState(false)
   const [llmProvider, setLlmProvider] = useState<LLMProviderName>('none')
   const [apiKey, setApiKey] = useState('')
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434')
@@ -52,6 +63,7 @@ export function Popup() {
       setReaderLineHeight(settings.readerLineHeight)
       setReaderTheme(settings.readerTheme)
       setReaderColumnWidth(settings.readerColumnWidth)
+      setRulerColor(settings.rulerColor)
 
       try {
         const ttsRes = await chrome.runtime.sendMessage({
@@ -67,6 +79,20 @@ export function Popup() {
           type: 'GET_READER_STATE',
         } satisfies Message)
         if (readerRes?.ok) setReaderEnabled(readerRes.data as boolean)
+      } catch {
+        // Content script not available
+      }
+
+      try {
+        const focusRes = await chrome.runtime.sendMessage({
+          type: 'GET_FOCUS_TOOLS_STATE',
+        } satisfies Message)
+        if (focusRes?.ok) {
+          const data = focusRes.data as FocusToolsState
+          setRulerEnabled(data.rulerEnabled)
+          setFocusEnabled(data.focusEnabled)
+          setComplexityEnabled(data.complexityEnabled)
+        }
       } catch {
         // Content script not available
       }
@@ -95,6 +121,11 @@ export function Popup() {
       }
       if (message.type === 'READER_STATE_CHANGED') {
         setReaderEnabled(message.payload.enabled)
+      }
+      if (message.type === 'FOCUS_TOOLS_STATE_CHANGED') {
+        setRulerEnabled(message.payload.rulerEnabled)
+        setFocusEnabled(message.payload.focusEnabled)
+        setComplexityEnabled(message.payload.complexityEnabled)
       }
     }
     chrome.runtime.onMessage.addListener(listener)
@@ -137,6 +168,38 @@ export function Popup() {
       // ignore
     }
   }, [])
+
+  const handleToggleRuler = useCallback(async () => {
+    try {
+      await chrome.runtime.sendMessage({ type: 'TOGGLE_RULER' } satisfies Message)
+      setRulerEnabled((prev) => !prev)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const handleToggleFocus = useCallback(async () => {
+    try {
+      await chrome.runtime.sendMessage({ type: 'TOGGLE_FOCUS' } satisfies Message)
+      setFocusEnabled((prev) => !prev)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const handleToggleComplexity = useCallback(async () => {
+    try {
+      await chrome.runtime.sendMessage({ type: 'TOGGLE_COMPLEXITY' } satisfies Message)
+      setComplexityEnabled((prev) => !prev)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const handleRulerColorChange = async (value: string) => {
+    setRulerColor(value)
+    await setSettings({ rulerColor: value })
+  }
 
   const handleVoiceChange = async (name: string) => {
     setSelectedVoice(name)
@@ -224,7 +287,7 @@ export function Popup() {
           <span className="text-white text-xs font-bold">CP</span>
         </div>
         <span className="font-semibold text-sm text-white tracking-wide">ClearPath</span>
-        <span className="ml-auto text-xs text-slate-500 font-medium">v0.3</span>
+        <span className="ml-auto text-xs text-slate-500 font-medium">v0.4</span>
       </div>
 
       {/* Read Aloud section */}
@@ -339,6 +402,104 @@ export function Popup() {
         >
           {readerEnabled ? 'Exit Reading Mode' : 'Enter Reading Mode'}
         </button>
+      </div>
+
+      {/* Focus Tools */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowFocusTools((o) => !o)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold
+            text-slate-400 uppercase tracking-widest hover:text-slate-300 transition-colors
+            focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-2 focus-visible:ring-brand-blue"
+          aria-expanded={showFocusTools}
+        >
+          <span>Focus Tools</span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            className={`transition-transform ${showFocusTools ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          >
+            <path d="M2 4l4 4 4-4" />
+          </svg>
+        </button>
+
+        {showFocusTools && (
+          <div className="px-4 pb-4 space-y-3">
+            {/* Reading Ruler */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-300">Reading Ruler</span>
+              <button
+                onClick={handleToggleRuler}
+                aria-pressed={rulerEnabled}
+                aria-label="Reading Ruler"
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue
+                  ${rulerEnabled
+                    ? 'bg-brand-blue/20 text-brand-blue border border-brand-blue/40'
+                    : 'bg-navy-800 text-slate-400 border border-white/10 hover:bg-navy-700'
+                  }`}
+              >
+                {rulerEnabled ? 'On' : 'Off'}
+              </button>
+            </div>
+
+            {/* Ruler color */}
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-slate-400" htmlFor="cp-ruler-color">
+                Ruler Color
+              </label>
+              <input
+                id="cp-ruler-color"
+                type="color"
+                value={rulerColor}
+                onChange={(e) => handleRulerColorChange(e.target.value)}
+                className="w-8 h-7 rounded cursor-pointer border border-white/10 bg-transparent"
+                aria-label="Ruler color"
+              />
+            </div>
+
+            {/* Paragraph Focus */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-300">Paragraph Focus</span>
+              <button
+                onClick={handleToggleFocus}
+                aria-pressed={focusEnabled}
+                aria-label="Paragraph Focus"
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue
+                  ${focusEnabled
+                    ? 'bg-brand-blue/20 text-brand-blue border border-brand-blue/40'
+                    : 'bg-navy-800 text-slate-400 border border-white/10 hover:bg-navy-700'
+                  }`}
+              >
+                {focusEnabled ? 'On' : 'Off'}
+              </button>
+            </div>
+
+            {/* Word Complexity */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-300">Word Complexity</span>
+              <button
+                onClick={handleToggleComplexity}
+                aria-pressed={complexityEnabled}
+                aria-label="Word Complexity"
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue
+                  ${complexityEnabled
+                    ? 'bg-brand-blue/20 text-brand-blue border border-brand-blue/40'
+                    : 'bg-navy-800 text-slate-400 border border-white/10 hover:bg-navy-700'
+                  }`}
+              >
+                {complexityEnabled ? 'On' : 'Off'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Voice settings */}

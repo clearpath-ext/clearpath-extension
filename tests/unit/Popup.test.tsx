@@ -43,6 +43,10 @@ const defaultSettings = {
   readerLineHeight: 1.75,
   readerTheme: 'light' as const,
   readerColumnWidth: 'medium' as const,
+  rulerEnabled: false,
+  rulerColor: '#FFD700',
+  focusEnabled: false,
+  complexityEnabled: false,
 }
 
 describe('Popup', () => {
@@ -723,6 +727,173 @@ describe('Popup', () => {
     expect(screen.queryByLabelText(/api key/i)).toBeNull()
     expect(screen.queryByLabelText(/ollama url/i)).toBeNull()
     expect(screen.queryByLabelText(/model/i)).toBeNull()
+  })
+
+  // ── Focus Tools panel ─────────────────────────────────────────────────────
+
+  it('applies focus tools state from GET_FOCUS_TOOLS_STATE on mount', async () => {
+    vi.mocked(chrome.runtime.sendMessage)
+      .mockResolvedValueOnce({ ok: false })   // GET_TTS_STATE
+      .mockResolvedValueOnce({ ok: false })   // GET_READER_STATE
+      .mockResolvedValueOnce({ ok: true, data: { rulerEnabled: true, focusEnabled: false, complexityEnabled: true } })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /focus tools/i }))
+
+    const rulerBtn = screen.getByRole('button', { name: /reading ruler/i })
+    expect(rulerBtn).toHaveAttribute('aria-pressed', 'true')
+
+    const complexityBtn = screen.getByRole('button', { name: /word complexity/i })
+    expect(complexityBtn).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('updates focus tools state when FOCUS_TOOLS_STATE_CHANGED arrives', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    const listener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0]
+
+    await act(async () => {
+      listener?.(
+        { type: 'FOCUS_TOOLS_STATE_CHANGED', payload: { rulerEnabled: false, focusEnabled: true, complexityEnabled: false } },
+        {},
+        vi.fn(),
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /focus tools/i }))
+
+    const focusBtn = screen.getByRole('button', { name: /paragraph focus/i })
+    expect(focusBtn).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('expands the Focus Tools panel on click', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /focus tools/i }))
+
+    expect(screen.getByRole('button', { name: /reading ruler/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /paragraph focus/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /word complexity/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/ruler color/i)).toBeInTheDocument()
+  })
+
+  it('sends TOGGLE_RULER and optimistically toggles when ruler button is clicked', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /focus tools/i }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /reading ruler/i }))
+    })
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'TOGGLE_RULER' })
+    expect(screen.getByRole('button', { name: /reading ruler/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('sends TOGGLE_FOCUS when paragraph focus button is clicked', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /focus tools/i }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /paragraph focus/i }))
+    })
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'TOGGLE_FOCUS' })
+  })
+
+  it('sends TOGGLE_COMPLEXITY when word complexity button is clicked', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /focus tools/i }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /word complexity/i }))
+    })
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'TOGGLE_COMPLEXITY' })
+  })
+
+  it('saves ruler color to storage when color picker changes', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /focus tools/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/ruler color/i), { target: { value: '#FF0000' } })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ rulerColor: '#ff0000' })
+  })
+
+  it('swallows sendMessage rejection for ruler toggle', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('no tab'))
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /focus tools/i }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /reading ruler/i }))
+    })
+
+    // Toggle did not fire — button stays Off
+    expect(screen.getByRole('button', { name: /reading ruler/i })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('swallows sendMessage rejection for paragraph focus toggle', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('no tab'))
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /focus tools/i }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /paragraph focus/i }))
+    })
+
+    expect(screen.getByRole('button', { name: /paragraph focus/i })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('swallows sendMessage rejection for word complexity toggle', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('no tab'))
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /focus tools/i }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /word complexity/i }))
+    })
+
+    expect(screen.getByRole('button', { name: /word complexity/i })).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('loads saved LLM settings from storage on mount', async () => {
