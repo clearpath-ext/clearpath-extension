@@ -38,19 +38,19 @@ Select any text, right-click, and choose **Simplify**. The text is rewritten in 
 ### ✅ Reading Mode *(v0.3.0)*
 Strips a page down to its main content using Mozilla Readability. Apply custom typography: font family (including OpenDyslexic), size, and line height. Choose from four color themes (light, dark, sepia, high-contrast). Words are highlighted in sync with Read Aloud when both are active together.
 
-### 🗓 Symbol Overlay *(planned)*
-Displays AAC-style pictogram symbols above words on any page, powered by the open ARASAAC symbol library. Configurable density: key words only, or all supported words. Designed for AAC users and the people who support them.
-
 ### ✅ Focus Tools *(v0.4.0)*
 - **Reading ruler** — a semi-transparent colored band that follows your cursor to help you track lines
 - **Paragraph focus** — dims all other content in reading mode, keeping just the paragraph you're on fully visible
 - **Word complexity** — underlines hard words with a dotted amber line and shows a simpler alternative on hover, sourced from plainlanguage.gov
 
+### ✅ Symbol Overlay *(v0.5.0)*
+Displays AAC pictogram symbols above words on any page, powered by the open [ARASAAC](https://arasaac.org) symbol library (CC BY-NC-SA 4.0). Two density modes: **key words only** (~36 high-frequency core vocabulary words) or **all supported words** (~100 words). Toggle from the popup or right-click context menu. Works on any page, not just reading mode.
+
+### ✅ Profiles *(v0.5.0)*
+Create named accessibility profiles and save your current settings with one click. Export profiles as JSON to back them up or share them — ideal for SLPs configuring settings for a client, or caregivers setting up a device for a family member. Import profiles from JSON on any device.
+
 ### 🗓 Vocabulary Support *(planned)*
 Double-click any word for an instant plain-English definition. No API required — powered by an embedded open dictionary.
-
-### 🗓 Profiles *(planned)*
-Create named accessibility profiles, save all settings, and export them as JSON to share. Ideal for SLPs configuring settings for a client, or caregivers setting up a device for a family member.
 
 ---
 
@@ -95,7 +95,7 @@ Simplify requires an LLM API key, or a local Ollama instance. Your text goes dir
 | UI | React 18 + Tailwind CSS (popup); vanilla DOM + Shadow DOM (content scripts) |
 | TTS | Web Speech API |
 | LLM | OpenAI / Anthropic / Ollama (direct from browser — no proxy) |
-| Testing | Vitest + jsdom + Testing Library (310 tests, 100% coverage) |
+| Testing | Vitest + jsdom + Testing Library (379 tests, 100% coverage) |
 | CI/CD | GitHub Actions |
 | Standard | Manifest V3 |
 | Package Manager | pnpm |
@@ -117,12 +117,15 @@ src/
 │   ├── highlighter.ts      # Word-level TTS highlight (binary search over char positions)
 │   ├── ruler.ts            # Reading ruler (Shadow DOM band tracking mousemove)
 │   ├── focus.ts            # Paragraph focus (dims reader content except hovered block)
-│   └── complexity.ts       # Word complexity (plainlanguage.gov map + hover tooltips)
+│   ├── complexity.ts       # Word complexity (plainlanguage.gov map + hover tooltips)
+│   ├── symbolData.ts       # ARASAAC word→image map (key ~36 words / all ~100 words)
+│   └── symbols.ts          # Symbol overlay (wraps text nodes with pictogram images)
 ├── lib/
 │   ├── llm.ts              # LLM provider abstraction (OpenAI / Anthropic / Ollama)
+│   ├── profiles.ts         # Named profiles: save/load/delete/export/import
 │   └── storage.ts          # chrome.storage.sync wrappers
 ├── popup/
-│   ├── Popup.tsx           # React popup: Read Aloud + Voice + LLM + Reader + Focus Tools
+│   ├── Popup.tsx           # React popup: Read Aloud + Voice + LLM + Reader + Focus Tools + Symbols + Profiles
 │   └── index.tsx
 └── shared/
     └── types.ts            # Message union, Settings interface, defaults
@@ -142,6 +145,11 @@ Quick start:
 ---
 
 ## Changelog
+
+### v0.5.0 — Profiles & Symbol Overlay *(2026-04-08)*
+- Symbol Overlay: ARASAAC pictogram images above words on any page; key/all density modes; togglable from popup + context menu
+- Profiles: save, load, delete, export (JSON), and import named accessibility profiles; cap of 10 profiles
+- 100% test coverage (379 tests across 16 files)
 
 ### v0.4.0 — Focus Tools *(2026-04-08)*
 - Reading ruler: configurable-color band that follows the cursor across any page
