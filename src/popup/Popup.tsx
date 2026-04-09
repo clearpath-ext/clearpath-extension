@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getSettings, setSettings } from '../lib/storage'
+import { getProfiles, saveProfile, deleteProfile, loadProfile, exportProfiles, importProfiles } from '../lib/profiles'
 import type {
   Message,
   TTSAction,
@@ -9,12 +10,20 @@ import type {
   ReaderFont,
   ReaderTheme,
   ReaderColumnWidth,
+  SymbolDensity,
+  Profile,
+  Settings,
 } from '../shared/types'
 
 interface FocusToolsState {
   rulerEnabled: boolean
   focusEnabled: boolean
   complexityEnabled: boolean
+}
+
+interface SymbolsState {
+  symbolsEnabled: boolean
+  symbolDensity: SymbolDensity
 }
 
 export function Popup() {
@@ -33,6 +42,14 @@ export function Popup() {
   const [rulerColor, setRulerColor] = useState('#FFD700')
   const [focusEnabled, setFocusEnabled] = useState(false)
   const [complexityEnabled, setComplexityEnabled] = useState(false)
+  const [symbolsEnabled, setSymbolsEnabled] = useState(false)
+  const [symbolDensity, setSymbolDensity] = useState<SymbolDensity>('key')
+  const [showSymbols, setShowSymbols] = useState(false)
+  const [showProfiles, setShowProfiles] = useState(false)
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [newProfileName, setNewProfileName] = useState('')
+  const [profileError, setProfileError] = useState('')
+  const importFileRef = useRef<HTMLInputElement>(null)
   const [llmProvider, setLlmProvider] = useState<LLMProviderName>('none')
   const [apiKey, setApiKey] = useState('')
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434')
@@ -46,24 +63,33 @@ export function Popup() {
   const rateDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pitchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const applySettingsState = useCallback((s: Settings) => {
+    setSelectedVoice(s.ttsVoice)
+    setRate(s.ttsRate)
+    setPitch(s.ttsPitch)
+    setLlmProvider(s.llmProvider)
+    setApiKey(s.apiKey)
+    setOllamaUrl(s.ollamaUrl)
+    setOllamaModel(s.ollamaModel)
+    setReadingLevel(s.readingLevel)
+    setReaderFont(s.readerFont)
+    setReaderFontSize(s.readerFontSize)
+    setReaderLineHeight(s.readerLineHeight)
+    setReaderTheme(s.readerTheme)
+    setReaderColumnWidth(s.readerColumnWidth)
+    setRulerColor(s.rulerColor)
+    setSymbolsEnabled(s.symbolsEnabled)
+    setSymbolDensity(s.symbolDensity)
+  }, [])
+
   // Load persisted settings and initial TTS / reader state
   useEffect(() => {
     async function load() {
       const settings = await getSettings()
-      setSelectedVoice(settings.ttsVoice)
-      setRate(settings.ttsRate)
-      setPitch(settings.ttsPitch)
-      setLlmProvider(settings.llmProvider)
-      setApiKey(settings.apiKey)
-      setOllamaUrl(settings.ollamaUrl)
-      setOllamaModel(settings.ollamaModel)
-      setReadingLevel(settings.readingLevel)
-      setReaderFont(settings.readerFont)
-      setReaderFontSize(settings.readerFontSize)
-      setReaderLineHeight(settings.readerLineHeight)
-      setReaderTheme(settings.readerTheme)
-      setReaderColumnWidth(settings.readerColumnWidth)
-      setRulerColor(settings.rulerColor)
+      applySettingsState(settings)
+
+      const loadedProfiles = await getProfiles()
+      setProfiles(loadedProfiles)
 
       try {
         const ttsRes = await chrome.runtime.sendMessage({
@@ -92,6 +118,19 @@ export function Popup() {
           setRulerEnabled(data.rulerEnabled)
           setFocusEnabled(data.focusEnabled)
           setComplexityEnabled(data.complexityEnabled)
+        }
+      } catch {
+        // Content script not available
+      }
+
+      try {
+        const symbolsRes = await chrome.runtime.sendMessage({
+          type: 'GET_SYMBOLS_STATE',
+        } satisfies Message)
+        if (symbolsRes?.ok) {
+          const data = symbolsRes.data as SymbolsState
+          setSymbolsEnabled(data.symbolsEnabled)
+          setSymbolDensity(data.symbolDensity)
         }
       } catch {
         // Content script not available
@@ -126,6 +165,10 @@ export function Popup() {
         setRulerEnabled(message.payload.rulerEnabled)
         setFocusEnabled(message.payload.focusEnabled)
         setComplexityEnabled(message.payload.complexityEnabled)
+      }
+      if (message.type === 'SYMBOLS_STATE_CHANGED') {
+        setSymbolsEnabled(message.payload.symbolsEnabled)
+        setSymbolDensity(message.payload.symbolDensity)
       }
     }
     chrome.runtime.onMessage.addListener(listener)
@@ -195,6 +238,65 @@ export function Popup() {
       // ignore
     }
   }, [])
+
+  const handleToggleSymbols = useCallback(async () => {
+    try {
+      await chrome.runtime.sendMessage({ type: 'TOGGLE_SYMBOLS' } satisfies Message)
+      setSymbolsEnabled((prev) => !prev)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const handleSymbolDensityChange = async (value: SymbolDensity) => {
+    setSymbolDensity(value)
+    await setSettings({ symbolDensity: value })
+  }
+
+  const handleSaveProfile = async () => {
+    if (!newProfileName.trim()) {
+      setProfileError('Name required')
+      return
+    }
+    try {
+      const saved = await saveProfile(newProfileName)
+      setProfiles((prev) => [...prev, saved])
+      setNewProfileName('')
+      setProfileError('')
+    } catch (e) {
+      setProfileError(String(e))
+    }
+  }
+
+  const handleLoadProfile = async (profile: Profile) => {
+    await loadProfile(profile)
+    const s = await getSettings()
+    applySettingsState(s)
+  }
+
+  const handleDeleteProfile = async (id: string) => {
+    await deleteProfile(id)
+    setProfiles((prev) => prev.filter((p) => p.id !== id))
+  }
+
+  const handleExportProfiles = () => {
+    exportProfiles(profiles)
+  }
+
+  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    /* v8 ignore next */
+    if (!file) return
+    try {
+      const text = await file.text()
+      const merged = await importProfiles(text)
+      setProfiles(merged)
+      setProfileError('')
+    } catch (err) {
+      setProfileError(String(err))
+    }
+    e.target.value = ''
+  }
 
   const handleRulerColorChange = async (value: string) => {
     setRulerColor(value)
@@ -287,7 +389,7 @@ export function Popup() {
           <span className="text-white text-xs font-bold">CP</span>
         </div>
         <span className="font-semibold text-sm text-white tracking-wide">ClearPath</span>
-        <span className="ml-auto text-xs text-slate-500 font-medium">v0.4</span>
+        <span className="ml-auto text-xs text-slate-500 font-medium">v0.5</span>
       </div>
 
       {/* Read Aloud section */}
@@ -497,6 +599,184 @@ export function Popup() {
               >
                 {complexityEnabled ? 'On' : 'Off'}
               </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Symbol Overlay */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowSymbols((o) => !o)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold
+            text-slate-400 uppercase tracking-widest hover:text-slate-300 transition-colors
+            focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-2 focus-visible:ring-brand-blue"
+          aria-expanded={showSymbols}
+        >
+          <span>Symbol Overlay</span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            className={`transition-transform ${showSymbols ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          >
+            <path d="M2 4l4 4 4-4" />
+          </svg>
+        </button>
+
+        {showSymbols && (
+          <div className="px-4 pb-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-300">Symbols</span>
+              <button
+                onClick={handleToggleSymbols}
+                aria-pressed={symbolsEnabled}
+                aria-label="Symbols"
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue
+                  ${symbolsEnabled
+                    ? 'bg-brand-blue/20 text-brand-blue border border-brand-blue/40'
+                    : 'bg-navy-800 text-slate-400 border border-white/10 hover:bg-navy-700'
+                  }`}
+              >
+                {symbolsEnabled ? 'On' : 'Off'}
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs text-slate-400 mb-1" htmlFor="cp-symbol-density">
+                Symbol Density
+              </label>
+              <select
+                id="cp-symbol-density"
+                value={symbolDensity}
+                onChange={(e) => handleSymbolDensityChange(e.target.value as SymbolDensity)}
+                className="w-full bg-navy-800 border border-white/10 rounded-md px-2 py-1.5
+                  text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              >
+                <option value="key">Key words only</option>
+                <option value="all">All words</option>
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Profiles */}
+      <div className="border-t border-white/10">
+        <button
+          onClick={() => setShowProfiles((o) => !o)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold
+            text-slate-400 uppercase tracking-widest hover:text-slate-300 transition-colors
+            focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-2 focus-visible:ring-brand-blue"
+          aria-expanded={showProfiles}
+        >
+          <span>Profiles</span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            className={`transition-transform ${showProfiles ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          >
+            <path d="M2 4l4 4 4-4" />
+          </svg>
+        </button>
+
+        {showProfiles && (
+          <div className="px-4 pb-4 space-y-3">
+            {profiles.length === 0 ? (
+              <p className="text-xs text-slate-500">No saved profiles.</p>
+            ) : (
+              <ul className="space-y-2">
+                {profiles.map((profile) => (
+                  <li key={profile.id} className="flex items-center justify-between gap-2">
+                    <span className="text-sm text-slate-300 truncate flex-1">{profile.name}</span>
+                    <div className="flex gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleLoadProfile(profile)}
+                        aria-label={`Load ${profile.name}`}
+                        className="px-2 py-1 rounded text-xs font-medium bg-brand-blue/20
+                          text-brand-blue border border-brand-blue/40 hover:bg-brand-blue/30
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+                      >
+                        Load
+                      </button>
+                      <button
+                        onClick={() => handleDeleteProfile(profile.id)}
+                        aria-label={`Delete ${profile.name}`}
+                        className="px-2 py-1 rounded text-xs font-medium bg-navy-800
+                          text-slate-400 border border-white/10 hover:bg-red-900/40 hover:text-red-400
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newProfileName}
+                onChange={(e) => setNewProfileName(e.target.value)}
+                placeholder="Profile name"
+                aria-label="Profile name"
+                className="flex-1 bg-navy-800 border border-white/10 rounded-md px-2 py-1.5
+                  text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue
+                  placeholder:text-slate-600"
+              />
+              <button
+                onClick={handleSaveProfile}
+                aria-label="Save profile"
+                className="px-3 py-1.5 rounded-md text-xs font-semibold bg-brand-blue/20
+                  text-brand-blue border border-brand-blue/40 hover:bg-brand-blue/30
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+              >
+                Save
+              </button>
+            </div>
+
+            {profileError && (
+              <p className="text-xs text-red-400">{profileError}</p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleExportProfiles}
+                aria-label="Export profiles"
+                className="flex-1 py-1.5 rounded-md text-xs font-semibold bg-navy-800
+                  text-slate-400 border border-white/10 hover:bg-navy-700
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+              >
+                Export
+              </button>
+              <button
+                onClick={() => importFileRef.current?.click()}
+                aria-label="Import profiles"
+                className="flex-1 py-1.5 rounded-md text-xs font-semibold bg-navy-800
+                  text-slate-400 border border-white/10 hover:bg-navy-700
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+              >
+                Import
+              </button>
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                aria-hidden="true"
+                onChange={handleImportFileChange}
+              />
             </div>
           </div>
         )}

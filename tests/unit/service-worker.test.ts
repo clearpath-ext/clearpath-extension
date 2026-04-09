@@ -44,7 +44,7 @@ describe('service-worker', () => {
       expect(installedListener).toBeTypeOf('function')
     })
 
-    it('clears existing menus then creates all six menu items', () => {
+    it('clears existing menus then creates all seven menu items', () => {
       installedListener?.({})
       expect(chrome.contextMenus.removeAll).toHaveBeenCalledOnce()
       expect(chrome.contextMenus.create).toHaveBeenCalledWith({
@@ -75,6 +75,11 @@ describe('service-worker', () => {
       expect(chrome.contextMenus.create).toHaveBeenCalledWith({
         id: 'clearpath-complexity',
         title: 'Toggle Word Complexity',
+        contexts: ['page', 'selection'],
+      })
+      expect(chrome.contextMenus.create).toHaveBeenCalledWith({
+        id: 'clearpath-symbols',
+        title: 'Toggle Symbol Overlay',
         contexts: ['page', 'selection'],
       })
     })
@@ -119,6 +124,14 @@ describe('service-worker', () => {
         { id: 42 } as chrome.tabs.Tab,
       )
       expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'TOGGLE_COMPLEXITY' })
+    })
+
+    it('sends TOGGLE_SYMBOLS to the clicked tab', () => {
+      contextMenuClickListener?.(
+        { menuItemId: 'clearpath-symbols' } as chrome.contextMenus.OnClickData,
+        { id: 42 } as chrome.tabs.Tab,
+      )
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'TOGGLE_SYMBOLS' })
     })
 
     it('does nothing if the menu item ID does not match', () => {
@@ -448,6 +461,66 @@ describe('service-worker', () => {
       expect(() =>
         messageListener?.(
           { type: 'FOCUS_TOOLS_STATE_CHANGED', payload: { rulerEnabled: false, focusEnabled: false, complexityEnabled: false } },
+          {},
+          vi.fn(),
+        ),
+      ).not.toThrow()
+
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    it('forwards TOGGLE_SYMBOLS to the active tab', async () => {
+      vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 30 }] as chrome.tabs.Tab[])
+      vi.mocked(chrome.tabs.sendMessage).mockImplementation(
+        (_id, _msg, cb?: (r: unknown) => void) => {
+          cb?.({ ok: true, data: undefined })
+          return undefined as unknown as number
+        },
+      )
+
+      const result = messageListener?.({ type: 'TOGGLE_SYMBOLS' }, {}, vi.fn())
+      expect(result).toBe(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(30, { type: 'TOGGLE_SYMBOLS' }, expect.any(Function))
+    })
+
+    it('forwards GET_SYMBOLS_STATE to the active tab', async () => {
+      vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 31 }] as chrome.tabs.Tab[])
+      vi.mocked(chrome.tabs.sendMessage).mockImplementation(
+        (_id, _msg, cb?: (r: unknown) => void) => {
+          cb?.({ ok: true, data: { symbolsEnabled: false, symbolDensity: 'key' } })
+          return undefined as unknown as number
+        },
+      )
+
+      const sendResponse = vi.fn()
+      const result = messageListener?.({ type: 'GET_SYMBOLS_STATE' }, {}, sendResponse)
+      expect(result).toBe(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ ok: true }))
+    })
+
+    it('forwards SYMBOLS_STATE_CHANGED to the runtime (popup)', () => {
+      vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+      messageListener?.(
+        { type: 'SYMBOLS_STATE_CHANGED', payload: { symbolsEnabled: true, symbolDensity: 'all' } },
+        {},
+        vi.fn(),
+      )
+
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: 'SYMBOLS_STATE_CHANGED',
+        payload: { symbolsEnabled: true, symbolDensity: 'all' },
+      })
+    })
+
+    it('swallows sendMessage rejection for SYMBOLS_STATE_CHANGED', async () => {
+      vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('popup closed'))
+
+      expect(() =>
+        messageListener?.(
+          { type: 'SYMBOLS_STATE_CHANGED', payload: { symbolsEnabled: false, symbolDensity: 'key' } },
           {},
           vi.fn(),
         ),

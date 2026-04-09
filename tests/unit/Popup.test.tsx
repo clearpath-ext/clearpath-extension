@@ -1,15 +1,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 
-const { mockGetSettings, mockSetSettings } = vi.hoisted(() => {
+const { mockGetSettings, mockSetSettings, mockGetProfiles, mockSaveProfile, mockDeleteProfile, mockLoadProfile, mockExportProfiles, mockImportProfiles } = vi.hoisted(() => {
   const mockGetSettings = vi.fn()
   const mockSetSettings = vi.fn().mockResolvedValue(undefined)
-  return { mockGetSettings, mockSetSettings }
+  const mockGetProfiles = vi.fn().mockResolvedValue([])
+  const mockSaveProfile = vi.fn()
+  const mockDeleteProfile = vi.fn().mockResolvedValue(undefined)
+  const mockLoadProfile = vi.fn().mockResolvedValue(undefined)
+  const mockExportProfiles = vi.fn()
+  const mockImportProfiles = vi.fn().mockResolvedValue([])
+  return { mockGetSettings, mockSetSettings, mockGetProfiles, mockSaveProfile, mockDeleteProfile, mockLoadProfile, mockExportProfiles, mockImportProfiles }
 })
 
 vi.mock('../../src/lib/storage', () => ({
   getSettings: mockGetSettings,
   setSettings: mockSetSettings,
+}))
+
+vi.mock('../../src/lib/profiles', () => ({
+  getProfiles: mockGetProfiles,
+  saveProfile: mockSaveProfile,
+  deleteProfile: mockDeleteProfile,
+  loadProfile: mockLoadProfile,
+  exportProfiles: mockExportProfiles,
+  importProfiles: mockImportProfiles,
 }))
 
 // speechSynthesis mock
@@ -53,6 +68,9 @@ describe('Popup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSettings.mockResolvedValue({ ...defaultSettings })
+    mockGetProfiles.mockResolvedValue([])
+    mockSaveProfile.mockResolvedValue({ id: 'new-id', name: 'Test', settings: {}, createdAt: Date.now() })
+    mockImportProfiles.mockResolvedValue([])
     mockGetVoices.mockReturnValue([])
     // Default: GET_TTS_STATE → no content; GET_READER_STATE → no content
     vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({ ok: false, error: 'no content' })
@@ -919,5 +937,321 @@ describe('Popup', () => {
       name: /reading level/i,
     }) as HTMLSelectElement
     expect(levelSelect.value).toBe('8')
+  })
+
+  // ── Symbol Overlay panel ──────────────────────────────────────────────────
+
+  it('expands the Symbol Overlay panel on click', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /symbol overlay/i }))
+
+    // Density selector is only visible when panel is expanded
+    expect(screen.getByRole('combobox', { name: /symbol density/i })).toBeInTheDocument()
+    // Inner toggle button uses aria-label="Symbols" (distinct from section header)
+    expect(screen.getByRole('button', { name: /^symbols$/i })).toBeInTheDocument()
+  })
+
+  it('applies symbols state from GET_SYMBOLS_STATE on mount', async () => {
+    vi.mocked(chrome.runtime.sendMessage)
+      .mockResolvedValueOnce({ ok: false })  // GET_TTS_STATE
+      .mockResolvedValueOnce({ ok: false })  // GET_READER_STATE
+      .mockResolvedValueOnce({ ok: false })  // GET_FOCUS_TOOLS_STATE
+      .mockResolvedValueOnce({ ok: true, data: { symbolsEnabled: true, symbolDensity: 'all' } })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /symbol overlay/i }))
+
+    const toggleBtn = screen.getByRole('button', { name: /^symbols$/i })
+    expect(toggleBtn).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('sends TOGGLE_SYMBOLS and optimistically toggles', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    // Open the panel
+    fireEvent.click(screen.getByRole('button', { name: /symbol overlay/i }))
+
+    // Click the inner Symbols toggle
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^symbols$/i }))
+    })
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'TOGGLE_SYMBOLS' })
+    expect(screen.getByRole('button', { name: /^symbols$/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('swallows sendMessage rejection for symbol overlay toggle', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('no tab'))
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /symbol overlay/i }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^symbols$/i }))
+    })
+
+    // Toggle did not fire — button stays Off
+    expect(screen.getByRole('button', { name: /^symbols$/i })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('saves symbol density change to storage', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /symbol overlay/i }))
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /symbol density/i }), {
+        target: { value: 'all' },
+      })
+    })
+
+    expect(mockSetSettings).toHaveBeenCalledWith({ symbolDensity: 'all' })
+  })
+
+  it('updates symbols state when SYMBOLS_STATE_CHANGED arrives', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    const listener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0]
+
+    await act(async () => {
+      listener?.(
+        { type: 'SYMBOLS_STATE_CHANGED', payload: { symbolsEnabled: true, symbolDensity: 'all' } },
+        {},
+        vi.fn(),
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /symbol overlay/i }))
+
+    expect(screen.getByRole('button', { name: /^symbols$/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  // ── Profiles panel ────────────────────────────────────────────────────────
+
+  it('expands the Profiles panel on click', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    expect(screen.getByLabelText(/profile name/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save profile/i })).toBeInTheDocument()
+  })
+
+  it('shows "No saved profiles" when list is empty', async () => {
+    mockGetProfiles.mockResolvedValue([])
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    expect(screen.getByText(/no saved profiles/i)).toBeInTheDocument()
+  })
+
+  it('renders loaded profiles with Load and Delete buttons', async () => {
+    mockGetProfiles.mockResolvedValue([
+      { id: 'p1', name: 'My Profile', settings: {}, createdAt: 1000 },
+    ])
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    expect(screen.getByText('My Profile')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /load my profile/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /delete my profile/i })).toBeInTheDocument()
+  })
+
+  it('saves a new profile when Save is clicked', async () => {
+    mockSaveProfile.mockResolvedValue({ id: 'new', name: 'Work', settings: {}, createdAt: 2000 })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    fireEvent.change(screen.getByLabelText(/profile name/i), { target: { value: 'Work' } })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /save profile/i }))
+    })
+
+    expect(mockSaveProfile).toHaveBeenCalledWith('Work')
+    expect(screen.getByText('Work')).toBeInTheDocument()
+  })
+
+  it('shows an error when saving with empty name', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /save profile/i }))
+    })
+
+    expect(screen.getByText(/name required/i)).toBeInTheDocument()
+    expect(mockSaveProfile).not.toHaveBeenCalled()
+  })
+
+  it('deletes a profile when Delete is clicked', async () => {
+    mockGetProfiles.mockResolvedValue([
+      { id: 'p1', name: 'To Delete', settings: {}, createdAt: 1000 },
+    ])
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /delete to delete/i }))
+    })
+
+    expect(mockDeleteProfile).toHaveBeenCalledWith('p1')
+    expect(screen.queryByText('To Delete')).toBeNull()
+  })
+
+  it('loads a profile and refreshes settings state', async () => {
+    mockGetProfiles.mockResolvedValue([
+      { id: 'p1', name: 'Saved', settings: { ttsRate: 0.7 }, createdAt: 1000 },
+    ])
+    mockGetSettings
+      .mockResolvedValueOnce({ ...defaultSettings })   // initial load
+      .mockResolvedValueOnce({ ...defaultSettings, ttsRate: 0.7 }) // after loadProfile
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /load saved/i }))
+    })
+
+    expect(mockLoadProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'p1', name: 'Saved' }),
+    )
+  })
+
+  it('calls exportProfiles when Export is clicked', async () => {
+    mockGetProfiles.mockResolvedValue([
+      { id: 'p1', name: 'Export Me', settings: {}, createdAt: 1000 },
+    ])
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    fireEvent.click(screen.getByRole('button', { name: /export profiles/i }))
+
+    expect(mockExportProfiles).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ id: 'p1' })]),
+    )
+  })
+
+  it('sets profileError when saveProfile throws', async () => {
+    mockSaveProfile.mockRejectedValueOnce(new Error('Maximum of 10 profiles reached'))
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+    fireEvent.change(screen.getByLabelText(/profile name/i), { target: { value: 'Too Many' } })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /save profile/i }))
+    })
+
+    expect(screen.getByText(/maximum of 10/i)).toBeInTheDocument()
+  })
+
+  it('calls importProfiles when a file is selected via the hidden input', async () => {
+    mockImportProfiles.mockResolvedValue([
+      { id: 'imp', name: 'Imported', settings: {}, createdAt: 5000 },
+    ])
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    const mockText = vi.fn().mockResolvedValue('[{"id":"imp","name":"Imported","settings":{},"createdAt":5000}]')
+    const mockFile = { text: mockText } as unknown as File
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+
+    await act(async () => {
+      Object.defineProperty(fileInput, 'files', { value: [mockFile], configurable: true })
+      fireEvent.change(fileInput)
+    })
+
+    expect(mockImportProfiles).toHaveBeenCalled()
+    expect(screen.getByText('Imported')).toBeInTheDocument()
+  })
+
+  it('sets profileError when importProfiles throws', async () => {
+    mockImportProfiles.mockRejectedValueOnce(new Error('Invalid JSON'))
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    const mockFile = { text: vi.fn().mockResolvedValue('bad json') } as unknown as File
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+
+    await act(async () => {
+      Object.defineProperty(fileInput, 'files', { value: [mockFile], configurable: true })
+      fireEvent.change(fileInput)
+    })
+
+    expect(screen.getByText(/invalid json/i)).toBeInTheDocument()
+  })
+
+  it('clicking Import button triggers the hidden file input click', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /profiles/i }))
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    const clickSpy = vi.spyOn(fileInput, 'click').mockImplementation(() => {})
+
+    fireEvent.click(screen.getByRole('button', { name: /import profiles/i }))
+
+    expect(clickSpy).toHaveBeenCalled()
+    clickSpy.mockRestore()
   })
 })

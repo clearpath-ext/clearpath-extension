@@ -6,6 +6,7 @@ import * as reader from './reader'
 import * as ruler from './ruler'
 import * as focus from './focus'
 import * as complexity from './complexity'
+import * as symbols from './symbols'
 import { getSettings, setSettings } from '../lib/storage'
 import type { Message, TTSState } from '../shared/types'
 
@@ -62,15 +63,19 @@ reader.init({
 ruler.init()
 focus.init()
 complexity.init()
+symbols.init()
 
-// Restore persisted focus tool states
+// Restore persisted tool states
 void getSettings().then((s) => {
-  console.debug('[ClearPath] Content script: restoring focus tools — ruler:', s.rulerEnabled, 'focus:', s.focusEnabled, 'complexity:', s.complexityEnabled)
+  console.debug('[ClearPath] Content script: restoring tool states — ruler:', s.rulerEnabled, 'focus:', s.focusEnabled, 'complexity:', s.complexityEnabled, 'symbols:', s.symbolsEnabled)
   ruler.setColor(s.rulerColor)
   /* v8 ignore next -- true branch not reachable at module-import time in tests */
   if (s.rulerEnabled) ruler.setEnabled(true)
   focus.setEnabled(s.focusEnabled)
   complexity.setEnabled(s.complexityEnabled)
+  symbols.setDensity(s.symbolDensity)
+  /* v8 ignore next -- true branch not reachable at module-import time in tests */
+  if (s.symbolsEnabled) { symbols.setEnabled(true); symbols.attach(document.body) }
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -109,6 +114,16 @@ function notifyFocusToolsChanged(): void {
       rulerEnabled: ruler.isEnabled(),
       focusEnabled: focus.isEnabled(),
       complexityEnabled: complexity.isEnabled(),
+    },
+  } satisfies Message).catch(() => {})
+}
+
+function notifySymbolsChanged(): void {
+  chrome.runtime.sendMessage({
+    type: 'SYMBOLS_STATE_CHANGED',
+    payload: {
+      symbolsEnabled: symbols.isEnabled(),
+      symbolDensity: symbols.getDensity(),
     },
   } satisfies Message).catch(() => {})
 }
@@ -260,6 +275,32 @@ chrome.runtime.onMessage.addListener(
             rulerEnabled: ruler.isEnabled(),
             focusEnabled: focus.isEnabled(),
             complexityEnabled: complexity.isEnabled(),
+          },
+        })
+        break
+      }
+
+      case 'TOGGLE_SYMBOLS': {
+        const newSymbols = !symbols.isEnabled()
+        symbols.setEnabled(newSymbols)
+        if (newSymbols) {
+          symbols.attach(document.body)
+        } else {
+          symbols.detach()
+        }
+        void setSettings({ symbolsEnabled: newSymbols }).then(() => {
+          notifySymbolsChanged()
+          sendResponse({ ok: true, data: { symbolsEnabled: newSymbols, symbolDensity: symbols.getDensity() } })
+        })
+        return true
+      }
+
+      case 'GET_SYMBOLS_STATE': {
+        sendResponse({
+          ok: true,
+          data: {
+            symbolsEnabled: symbols.isEnabled(),
+            symbolDensity: symbols.getDensity(),
           },
         })
         break

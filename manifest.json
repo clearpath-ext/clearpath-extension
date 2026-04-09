@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ClearPath",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "The web, on your terms. Text simplification, read aloud, reading mode, and AAC symbol overlay for any webpage.",
   "permissions": [
     "storage",
@@ -26,7 +26,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["assets/*", "fonts/*"],
+      "resources": ["assets/*", "fonts/*", "symbols/*"],
       "matches": ["<all_urls>"]
     }
   ]

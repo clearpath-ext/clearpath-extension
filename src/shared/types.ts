@@ -64,8 +64,10 @@ export const DEFAULT_SETTINGS: Settings = {
 // ── Profiles ──────────────────────────────────────────────────────────────────
 
 export interface Profile {
+  id: string
   name: string
   settings: Partial<Settings>
+  createdAt: number
 }
 
 // ── Messages ──────────────────────────────────────────────────────────────────
@@ -90,6 +92,9 @@ export type Message =
   | { type: 'TOGGLE_COMPLEXITY' }
   | { type: 'GET_FOCUS_TOOLS_STATE' }
   | { type: 'FOCUS_TOOLS_STATE_CHANGED'; payload: { rulerEnabled: boolean; focusEnabled: boolean; complexityEnabled: boolean } }
+  | { type: 'TOGGLE_SYMBOLS' }
+  | { type: 'GET_SYMBOLS_STATE' }
+  | { type: 'SYMBOLS_STATE_CHANGED'; payload: { symbolsEnabled: boolean; symbolDensity: SymbolDensity } }
 
 export type MessageResponse<T = void> =
   | { ok: true; data: T }

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { TTSState } from '../../src/shared/types'
 
 // vi.hoisted ensures mock factory variables are available when vi.mock is hoisted
-const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRuler, mockFocus, mockComplexity, mockStorage } = vi.hoisted(() => {
+const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRuler, mockFocus, mockComplexity, mockSymbols, mockStorage } = vi.hoisted(() => {
   const mockTts = {
     init: vi.fn(),
     speak: vi.fn().mockResolvedValue(undefined),
@@ -62,16 +62,27 @@ const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRule
     setEnabled: vi.fn(),
     isEnabled: vi.fn().mockReturnValue(false),
   }
+  const mockSymbols = {
+    init: vi.fn(),
+    attach: vi.fn(),
+    detach: vi.fn(),
+    setEnabled: vi.fn(),
+    setDensity: vi.fn(),
+    isEnabled: vi.fn().mockReturnValue(false),
+    getDensity: vi.fn().mockReturnValue('key' as const),
+  }
   const mockStorage = {
     getSettings: vi.fn().mockResolvedValue({
       rulerEnabled: false,
       rulerColor: '#FFD700',
       focusEnabled: false,
       complexityEnabled: false,
+      symbolsEnabled: false,
+      symbolDensity: 'key',
     }),
     setSettings: vi.fn().mockResolvedValue(undefined),
   }
-  return { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRuler, mockFocus, mockComplexity, mockStorage }
+  return { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRuler, mockFocus, mockComplexity, mockSymbols, mockStorage }
 })
 
 vi.mock('../../src/content/tts', () => mockTts)
@@ -82,6 +93,7 @@ vi.mock('../../src/content/reader', () => mockReader)
 vi.mock('../../src/content/ruler', () => mockRuler)
 vi.mock('../../src/content/focus', () => mockFocus)
 vi.mock('../../src/content/complexity', () => mockComplexity)
+vi.mock('../../src/content/symbols', () => mockSymbols)
 vi.mock('../../src/lib/storage', () => mockStorage)
 
 // Import coordinator after mocks are in place — registers message listener
@@ -127,6 +139,8 @@ describe('content/index message handler', () => {
     mockRuler.isEnabled.mockReturnValue(false)
     mockFocus.isEnabled.mockReturnValue(false)
     mockComplexity.isEnabled.mockReturnValue(false)
+    mockSymbols.isEnabled.mockReturnValue(false)
+    mockSymbols.getDensity.mockReturnValue('key' as const)
     mockStorage.setSettings.mockResolvedValue(undefined)
     // Ensure sendMessage always returns a promise so .catch() calls don't throw
     vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
@@ -636,6 +650,49 @@ describe('content/index message handler', () => {
       expect(sendResponse).toHaveBeenCalledWith({
         ok: true,
         data: { rulerEnabled: true, focusEnabled: false, complexityEnabled: true },
+      })
+    })
+  })
+
+  describe('TOGGLE_SYMBOLS', () => {
+    it('enables symbols and attaches to document.body', async () => {
+      mockSymbols.isEnabled.mockReturnValue(false)
+      const result = messageListener?.({ type: 'TOGGLE_SYMBOLS' }, {}, vi.fn())
+      expect(result).toBe(true)
+      expect(mockSymbols.setEnabled).toHaveBeenCalledWith(true)
+      expect(mockSymbols.attach).toHaveBeenCalledWith(document.body)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockStorage.setSettings).toHaveBeenCalledWith({ symbolsEnabled: true })
+    })
+
+    it('disables symbols and detaches', async () => {
+      mockSymbols.isEnabled.mockReturnValue(true)
+      messageListener?.({ type: 'TOGGLE_SYMBOLS' }, {}, vi.fn())
+      expect(mockSymbols.setEnabled).toHaveBeenCalledWith(false)
+      expect(mockSymbols.detach).toHaveBeenCalled()
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockStorage.setSettings).toHaveBeenCalledWith({ symbolsEnabled: false })
+    })
+
+    it('sends SYMBOLS_STATE_CHANGED after save', async () => {
+      mockSymbols.isEnabled.mockReturnValue(false)
+      messageListener?.({ type: 'TOGGLE_SYMBOLS' }, {}, vi.fn())
+      await new Promise((r) => setTimeout(r, 0))
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'SYMBOLS_STATE_CHANGED' }),
+      )
+    })
+  })
+
+  describe('GET_SYMBOLS_STATE', () => {
+    it('returns current symbols state', () => {
+      mockSymbols.isEnabled.mockReturnValue(true)
+      mockSymbols.getDensity.mockReturnValue('all' as const)
+      const sendResponse = vi.fn()
+      messageListener?.({ type: 'GET_SYMBOLS_STATE' }, {}, sendResponse)
+      expect(sendResponse).toHaveBeenCalledWith({
+        ok: true,
+        data: { symbolsEnabled: true, symbolDensity: 'all' },
       })
     })
   })
