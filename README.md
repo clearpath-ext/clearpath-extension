@@ -49,8 +49,8 @@ Displays AAC pictogram symbols above words on any page, powered by the open [ARA
 ### ✅ Profiles *(v0.5.0)*
 Create named accessibility profiles and save your current settings with one click. Export profiles as JSON to back them up or share them — ideal for SLPs configuring settings for a client, or caregivers setting up a device for a family member. Import profiles from JSON on any device.
 
-### 🗓 Vocabulary Support *(planned)*
-Double-click any word for an instant plain-English definition. No API required — powered by an embedded open dictionary.
+### 🗓 Vocabulary Support *(planned — Phase 7)*
+Double-click any word for an instant plain-English definition. No API required, fully offline — powered by a bundled dictionary derived from [Simple English Wiktionary](https://simple.wiktionary.org) (CC BY-SA), which is written in plain English by design. A one-time data pipeline processes the Wiktionary XML dump into a compact JSON file bundled with the extension.
 
 ---
 
@@ -180,6 +180,20 @@ Quick start:
 - Word-by-word highlight stub (full implementation in Phase 3)
 - Voice, speed, and pitch controls in popup
 - Context menu: **Read Aloud** on selected text
+
+---
+
+## Roadmap
+
+| Phase | Feature | Status |
+|---|---|---|
+| 1 | Read Aloud | ✅ v0.1.0 |
+| 2 | LLM Simplification | ✅ v0.2.0 |
+| 3 | Reading Mode | ✅ v0.3.0 |
+| 4 | Focus Tools | ✅ v0.4.0 |
+| 5 | Profiles & Symbol Overlay | ✅ v0.5.0 |
+| 6 | Polish (WCAG audit, Firefox, onboarding, store listing) | 🗓 planned |
+| 7 | Vocabulary Support (offline dictionary, double-click definitions) | 🗓 planned |
 
 ---
 
