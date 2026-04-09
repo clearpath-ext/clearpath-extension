@@ -7,6 +7,7 @@ import * as ruler from './ruler'
 import * as focus from './focus'
 import * as complexity from './complexity'
 import * as symbols from './symbols'
+import * as vocab from './vocab'
 import { getSettings, setSettings } from '../lib/storage'
 import type { Message, TTSState } from '../shared/types'
 
@@ -64,10 +65,11 @@ ruler.init()
 focus.init()
 complexity.init()
 symbols.init()
+vocab.init()
 
 // Restore persisted tool states
 void getSettings().then((s) => {
-  console.debug('[ClearPath] Content script: restoring tool states — ruler:', s.rulerEnabled, 'focus:', s.focusEnabled, 'complexity:', s.complexityEnabled, 'symbols:', s.symbolsEnabled)
+  console.debug('[ClearPath] Content script: restoring tool states — ruler:', s.rulerEnabled, 'focus:', s.focusEnabled, 'complexity:', s.complexityEnabled, 'symbols:', s.symbolsEnabled, 'vocab:', s.vocabEnabled)
   ruler.setColor(s.rulerColor)
   /* v8 ignore next -- true branch not reachable at module-import time in tests */
   if (s.rulerEnabled) ruler.setEnabled(true)
@@ -76,6 +78,8 @@ void getSettings().then((s) => {
   symbols.setDensity(s.symbolDensity)
   /* v8 ignore next -- true branch not reachable at module-import time in tests */
   if (s.symbolsEnabled) { symbols.setEnabled(true); symbols.attach(document.body) }
+  /* v8 ignore next -- true branch not reachable at module-import time in tests */
+  if (s.vocabEnabled) vocab.setEnabled(true)
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -125,6 +129,13 @@ function notifySymbolsChanged(): void {
       symbolsEnabled: symbols.isEnabled(),
       symbolDensity: symbols.getDensity(),
     },
+  } satisfies Message).catch(() => {})
+}
+
+function notifyVocabChanged(): void {
+  chrome.runtime.sendMessage({
+    type: 'VOCAB_STATE_CHANGED',
+    payload: { vocabEnabled: vocab.isEnabled() },
   } satisfies Message).catch(() => {})
 }
 
@@ -303,6 +314,21 @@ chrome.runtime.onMessage.addListener(
             symbolDensity: symbols.getDensity(),
           },
         })
+        break
+      }
+
+      case 'TOGGLE_VOCAB': {
+        const newVocab = !vocab.isEnabled()
+        vocab.setEnabled(newVocab)
+        void setSettings({ vocabEnabled: newVocab }).then(() => {
+          notifyVocabChanged()
+          sendResponse({ ok: true, data: { vocabEnabled: newVocab } })
+        })
+        return true
+      }
+
+      case 'GET_VOCAB_STATE': {
+        sendResponse({ ok: true, data: { vocabEnabled: vocab.isEnabled() } })
         break
       }
     }

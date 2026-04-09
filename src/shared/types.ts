@@ -24,6 +24,7 @@ export interface Settings {
   readingLevel: ReadingLevel
   symbolsEnabled: boolean
   symbolDensity: SymbolDensity
+  vocabEnabled: boolean
   // Reading Mode
   readerFont: ReaderFont
   readerFontSize: number // 16 | 18 | 20 | 22 | 24
@@ -48,6 +49,7 @@ export const DEFAULT_SETTINGS: Settings = {
   readingLevel: 5,
   symbolsEnabled: false,
   symbolDensity: 'key',
+  vocabEnabled: false,
   // Reading Mode
   readerFont: 'system',
   readerFontSize: 18,
@@ -95,6 +97,9 @@ export type Message =
   | { type: 'TOGGLE_SYMBOLS' }
   | { type: 'GET_SYMBOLS_STATE' }
   | { type: 'SYMBOLS_STATE_CHANGED'; payload: { symbolsEnabled: boolean; symbolDensity: SymbolDensity } }
+  | { type: 'TOGGLE_VOCAB' }
+  | { type: 'GET_VOCAB_STATE' }
+  | { type: 'VOCAB_STATE_CHANGED'; payload: { vocabEnabled: boolean } }
 
 export type MessageResponse<T = void> =
   | { ok: true; data: T }

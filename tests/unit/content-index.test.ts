@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { TTSState } from '../../src/shared/types'
 
 // vi.hoisted ensures mock factory variables are available when vi.mock is hoisted
-const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRuler, mockFocus, mockComplexity, mockSymbols, mockStorage } = vi.hoisted(() => {
+const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRuler, mockFocus, mockComplexity, mockSymbols, mockVocab, mockStorage } = vi.hoisted(() => {
   const mockTts = {
     init: vi.fn(),
     speak: vi.fn().mockResolvedValue(undefined),
@@ -71,6 +71,11 @@ const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRule
     isEnabled: vi.fn().mockReturnValue(false),
     getDensity: vi.fn().mockReturnValue('key' as const),
   }
+  const mockVocab = {
+    init: vi.fn(),
+    setEnabled: vi.fn(),
+    isEnabled: vi.fn().mockReturnValue(false),
+  }
   const mockStorage = {
     getSettings: vi.fn().mockResolvedValue({
       rulerEnabled: false,
@@ -79,10 +84,11 @@ const { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRule
       complexityEnabled: false,
       symbolsEnabled: false,
       symbolDensity: 'key',
+      vocabEnabled: false,
     }),
     setSettings: vi.fn().mockResolvedValue(undefined),
   }
-  return { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRuler, mockFocus, mockComplexity, mockSymbols, mockStorage }
+  return { mockTts, mockToolbar, mockHighlighter, mockOverlay, mockReader, mockRuler, mockFocus, mockComplexity, mockSymbols, mockVocab, mockStorage }
 })
 
 vi.mock('../../src/content/tts', () => mockTts)
@@ -94,6 +100,7 @@ vi.mock('../../src/content/ruler', () => mockRuler)
 vi.mock('../../src/content/focus', () => mockFocus)
 vi.mock('../../src/content/complexity', () => mockComplexity)
 vi.mock('../../src/content/symbols', () => mockSymbols)
+vi.mock('../../src/content/vocab', () => mockVocab)
 vi.mock('../../src/lib/storage', () => mockStorage)
 
 // Import coordinator after mocks are in place — registers message listener
@@ -141,6 +148,7 @@ describe('content/index message handler', () => {
     mockComplexity.isEnabled.mockReturnValue(false)
     mockSymbols.isEnabled.mockReturnValue(false)
     mockSymbols.getDensity.mockReturnValue('key' as const)
+    mockVocab.isEnabled.mockReturnValue(false)
     mockStorage.setSettings.mockResolvedValue(undefined)
     // Ensure sendMessage always returns a promise so .catch() calls don't throw
     vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
@@ -693,6 +701,46 @@ describe('content/index message handler', () => {
       expect(sendResponse).toHaveBeenCalledWith({
         ok: true,
         data: { symbolsEnabled: true, symbolDensity: 'all' },
+      })
+    })
+  })
+
+  describe('TOGGLE_VOCAB', () => {
+    it('enables vocab and saves to storage', async () => {
+      mockVocab.isEnabled.mockReturnValue(false)
+      const result = messageListener?.({ type: 'TOGGLE_VOCAB' }, {}, vi.fn())
+      expect(result).toBe(true)
+      expect(mockVocab.setEnabled).toHaveBeenCalledWith(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockStorage.setSettings).toHaveBeenCalledWith({ vocabEnabled: true })
+    })
+
+    it('disables vocab', async () => {
+      mockVocab.isEnabled.mockReturnValue(true)
+      messageListener?.({ type: 'TOGGLE_VOCAB' }, {}, vi.fn())
+      expect(mockVocab.setEnabled).toHaveBeenCalledWith(false)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(mockStorage.setSettings).toHaveBeenCalledWith({ vocabEnabled: false })
+    })
+
+    it('sends VOCAB_STATE_CHANGED after save', async () => {
+      mockVocab.isEnabled.mockReturnValue(false)
+      messageListener?.({ type: 'TOGGLE_VOCAB' }, {}, vi.fn())
+      await new Promise((r) => setTimeout(r, 0))
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'VOCAB_STATE_CHANGED' }),
+      )
+    })
+  })
+
+  describe('GET_VOCAB_STATE', () => {
+    it('returns current vocab state', () => {
+      mockVocab.isEnabled.mockReturnValue(true)
+      const sendResponse = vi.fn()
+      messageListener?.({ type: 'GET_VOCAB_STATE' }, {}, sendResponse)
+      expect(sendResponse).toHaveBeenCalledWith({
+        ok: true,
+        data: { vocabEnabled: true },
       })
     })
   })

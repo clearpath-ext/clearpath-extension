@@ -9,6 +9,7 @@ const MENU_RULER = 'clearpath-ruler'
 const MENU_FOCUS = 'clearpath-focus'
 const MENU_COMPLEXITY = 'clearpath-complexity'
 const MENU_SYMBOLS = 'clearpath-symbols'
+const MENU_VOCAB = 'clearpath-vocab'
 
 // ── Install ───────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,11 @@ chrome.runtime.onInstalled.addListener(() => {
       title: 'Toggle Symbol Overlay',
       contexts: ['page', 'selection'],
     })
+    chrome.contextMenus.create({
+      id: MENU_VOCAB,
+      title: 'Toggle Vocabulary Definitions',
+      contexts: ['page', 'selection'],
+    })
   })
 })
 
@@ -81,6 +87,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
   if (info.menuItemId === MENU_SYMBOLS && tab?.id != null) {
     chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SYMBOLS' } satisfies Message)
+  }
+
+  if (info.menuItemId === MENU_VOCAB && tab?.id != null) {
+    chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_VOCAB' } satisfies Message)
   }
 
   if (info.menuItemId === MENU_SIMPLIFY && tab?.id != null) {
@@ -153,6 +163,12 @@ chrome.runtime.onMessage.addListener(
       return true
     }
 
+    // Popup → content script: vocabulary
+    if (message.type === 'TOGGLE_VOCAB' || message.type === 'GET_VOCAB_STATE') {
+      forwardToActiveTab(message, sendResponse)
+      return true
+    }
+
     // Content script → popup: TTS state changed
     if (message.type === 'TTS_STATE_CHANGED') {
       chrome.runtime.sendMessage(message).catch(() => {
@@ -176,6 +192,13 @@ chrome.runtime.onMessage.addListener(
 
     // Content script → popup: symbol overlay state changed
     if (message.type === 'SYMBOLS_STATE_CHANGED') {
+      chrome.runtime.sendMessage(message).catch(() => {
+        // Popup may not be open — ignore
+      })
+    }
+
+    // Content script → popup: vocabulary state changed
+    if (message.type === 'VOCAB_STATE_CHANGED') {
       chrome.runtime.sendMessage(message).catch(() => {
         // Popup may not be open — ignore
       })

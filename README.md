@@ -49,8 +49,8 @@ Displays AAC pictogram symbols above words on any page, powered by the open [ARA
 ### ✅ Profiles *(v0.5.0)*
 Create named accessibility profiles and save your current settings with one click. Export profiles as JSON to back them up or share them — ideal for SLPs configuring settings for a client, or caregivers setting up a device for a family member. Import profiles from JSON on any device.
 
-### 🗓 Vocabulary Support *(planned — Phase 6)*
-Double-click any word for an instant plain-English definition. No API required, fully offline — powered by a bundled dictionary derived from [Simple English Wiktionary](https://simple.wiktionary.org) (CC BY-SA), which is written in plain English by design. A one-time data pipeline processes the Wiktionary XML dump into a compact JSON file bundled with the extension.
+### ✅ Vocabulary Support *(v0.6.0)*
+Double-click any word for an instant plain-English definition in a Shadow DOM tooltip. No API required, fully offline — powered by a bundled dictionary of 21,881 entries derived from [Simple English Wiktionary](https://simple.wiktionary.org) (CC BY-SA), which is written in plain English by design. A one-time Node.js data pipeline (`scripts/build-dictionary.js`) downloads the Wiktionary XML dump and extracts definitions into a compact 562 KB gzip dictionary bundled with the extension. Toggle from the popup or right-click context menu. Dismiss with Escape or a click outside.
 
 ### 🗓 Polish *(planned — Phase 7)*
 Full WCAG 2.1 AA accessibility audit of the extension UI, Firefox compatibility, first-run onboarding experience, and submission to the Chrome Web Store and Firefox Add-ons.
@@ -98,7 +98,7 @@ Simplify requires an LLM API key, or a local Ollama instance. Your text goes dir
 | UI | React 18 + Tailwind CSS (popup); vanilla DOM + Shadow DOM (content scripts) |
 | TTS | Web Speech API |
 | LLM | OpenAI / Anthropic / Ollama (direct from browser — no proxy) |
-| Testing | Vitest + jsdom + Testing Library (379 tests, 100% coverage) |
+| Testing | Vitest + jsdom + Testing Library (414 tests, 100% coverage) |
 | CI/CD | GitHub Actions |
 | Standard | Manifest V3 |
 | Package Manager | pnpm |
@@ -122,13 +122,14 @@ src/
 │   ├── focus.ts            # Paragraph focus (dims reader content except hovered block)
 │   ├── complexity.ts       # Word complexity (plainlanguage.gov map + hover tooltips)
 │   ├── symbolData.ts       # ARASAAC word→image map (key ~36 words / all ~100 words)
-│   └── symbols.ts          # Symbol overlay (wraps text nodes with pictogram images)
+│   ├── symbols.ts          # Symbol overlay (wraps text nodes with pictogram images)
+│   └── vocab.ts            # Vocabulary support (lazy dictionary load, Shadow DOM tooltip)
 ├── lib/
 │   ├── llm.ts              # LLM provider abstraction (OpenAI / Anthropic / Ollama)
 │   ├── profiles.ts         # Named profiles: save/load/delete/export/import
 │   └── storage.ts          # chrome.storage.sync wrappers
 ├── popup/
-│   ├── Popup.tsx           # React popup: Read Aloud + Voice + LLM + Reader + Focus Tools + Symbols + Profiles
+│   ├── Popup.tsx           # React popup: Read Aloud + Voice + LLM + Reader + Focus Tools + Symbols + Vocab + Profiles
 │   └── index.tsx
 └── shared/
     └── types.ts            # Message union, Settings interface, defaults
@@ -148,6 +149,14 @@ Quick start:
 ---
 
 ## Changelog
+
+### v0.6.0 — Vocabulary Support *(2026-04-08)*
+- Double-click any word to see a plain-English definition in a Shadow DOM tooltip
+- 21,881-entry offline dictionary bundled with the extension (562 KB gzip) — no API required
+- Dictionary derived from Simple English Wiktionary XML dump via `scripts/build-dictionary.js`
+- Lazy loading: dictionary only fetches on first double-click, then cached for the session
+- Dismiss with Escape or click outside; toggle from popup or right-click context menu
+- 100% test coverage (414 tests across 17 files)
 
 ### v0.5.0 — Profiles & Symbol Overlay *(2026-04-08)*
 - Symbol Overlay: ARASAAC pictogram images above words on any page; key/all density modes; togglable from popup + context menu
@@ -195,7 +204,7 @@ Quick start:
 | 3 | Reading Mode | ✅ v0.3.0 |
 | 4 | Focus Tools | ✅ v0.4.0 |
 | 5 | Profiles & Symbol Overlay | ✅ v0.5.0 |
-| 6 | Vocabulary Support (offline dictionary, double-click definitions) | 🗓 planned |
+| 6 | Vocabulary Support (offline dictionary, double-click definitions) | ✅ v0.6.0 |
 | 7 | Polish (WCAG audit, Firefox, onboarding, store listing) | 🗓 planned |
 
 ---

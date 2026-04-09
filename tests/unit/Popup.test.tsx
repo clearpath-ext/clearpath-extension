@@ -53,6 +53,7 @@ const defaultSettings = {
   readingLevel: 5 as const,
   symbolsEnabled: false,
   symbolDensity: 'key' as const,
+  vocabEnabled: false,
   readerFont: 'system' as const,
   readerFontSize: 18,
   readerLineHeight: 1.75,
@@ -1253,5 +1254,71 @@ describe('Popup', () => {
 
     expect(clickSpy).toHaveBeenCalled()
     clickSpy.mockRestore()
+  })
+
+  // ── Vocabulary panel ──────────────────────────────────────────────────────
+
+  it('applies vocab state from GET_VOCAB_STATE on mount', async () => {
+    vi.mocked(chrome.runtime.sendMessage)
+      .mockResolvedValueOnce({ ok: false })  // GET_TTS_STATE
+      .mockResolvedValueOnce({ ok: false })  // GET_READER_STATE
+      .mockResolvedValueOnce({ ok: false })  // GET_FOCUS_TOOLS_STATE
+      .mockResolvedValueOnce({ ok: false })  // GET_SYMBOLS_STATE
+      .mockResolvedValueOnce({ ok: true, data: { vocabEnabled: true } })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    const toggleBtn = screen.getByRole('button', { name: /vocabulary definitions/i })
+    expect(toggleBtn).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('sends TOGGLE_VOCAB and optimistically toggles', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /vocabulary definitions/i }))
+    })
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'TOGGLE_VOCAB' })
+    expect(screen.getByRole('button', { name: /vocabulary definitions/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('swallows sendMessage rejection for vocab toggle', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('no tab'))
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /vocabulary definitions/i }))
+    })
+
+    // Toggle did not fire — button stays Off
+    expect(screen.getByRole('button', { name: /vocabulary definitions/i })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('updates vocab state when VOCAB_STATE_CHANGED arrives', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    const listener = vi.mocked(chrome.runtime.onMessage.addListener).mock.calls[0]?.[0]
+
+    await act(async () => {
+      listener?.(
+        { type: 'VOCAB_STATE_CHANGED', payload: { vocabEnabled: true } },
+        {},
+        vi.fn(),
+      )
+    })
+
+    expect(screen.getByRole('button', { name: /vocabulary definitions/i })).toHaveAttribute('aria-pressed', 'true')
   })
 })

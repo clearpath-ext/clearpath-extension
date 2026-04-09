@@ -44,7 +44,7 @@ describe('service-worker', () => {
       expect(installedListener).toBeTypeOf('function')
     })
 
-    it('clears existing menus then creates all seven menu items', () => {
+    it('clears existing menus then creates all eight menu items', () => {
       installedListener?.({})
       expect(chrome.contextMenus.removeAll).toHaveBeenCalledOnce()
       expect(chrome.contextMenus.create).toHaveBeenCalledWith({
@@ -80,6 +80,11 @@ describe('service-worker', () => {
       expect(chrome.contextMenus.create).toHaveBeenCalledWith({
         id: 'clearpath-symbols',
         title: 'Toggle Symbol Overlay',
+        contexts: ['page', 'selection'],
+      })
+      expect(chrome.contextMenus.create).toHaveBeenCalledWith({
+        id: 'clearpath-vocab',
+        title: 'Toggle Vocabulary Definitions',
         contexts: ['page', 'selection'],
       })
     })
@@ -527,6 +532,76 @@ describe('service-worker', () => {
       ).not.toThrow()
 
       await new Promise((r) => setTimeout(r, 0))
+    })
+
+    it('forwards TOGGLE_VOCAB to the active tab', async () => {
+      vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 40 }] as chrome.tabs.Tab[])
+      vi.mocked(chrome.tabs.sendMessage).mockImplementation(
+        (_id, _msg, cb?: (r: unknown) => void) => {
+          cb?.({ ok: true, data: undefined })
+          return undefined as unknown as number
+        },
+      )
+
+      const result = messageListener?.({ type: 'TOGGLE_VOCAB' }, {}, vi.fn())
+      expect(result).toBe(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(40, { type: 'TOGGLE_VOCAB' }, expect.any(Function))
+    })
+
+    it('forwards GET_VOCAB_STATE to the active tab', async () => {
+      vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 41 }] as chrome.tabs.Tab[])
+      vi.mocked(chrome.tabs.sendMessage).mockImplementation(
+        (_id, _msg, cb?: (r: unknown) => void) => {
+          cb?.({ ok: true, data: { vocabEnabled: false } })
+          return undefined as unknown as number
+        },
+      )
+
+      const sendResponse = vi.fn()
+      const result = messageListener?.({ type: 'GET_VOCAB_STATE' }, {}, sendResponse)
+      expect(result).toBe(true)
+      await new Promise((r) => setTimeout(r, 0))
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ ok: true }))
+    })
+
+    it('forwards VOCAB_STATE_CHANGED to the runtime (popup)', () => {
+      vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined)
+
+      messageListener?.(
+        { type: 'VOCAB_STATE_CHANGED', payload: { vocabEnabled: true } },
+        {},
+        vi.fn(),
+      )
+
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: 'VOCAB_STATE_CHANGED',
+        payload: { vocabEnabled: true },
+      })
+    })
+
+    it('swallows sendMessage rejection for VOCAB_STATE_CHANGED', async () => {
+      vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('popup closed'))
+
+      expect(() =>
+        messageListener?.(
+          { type: 'VOCAB_STATE_CHANGED', payload: { vocabEnabled: false } },
+          {},
+          vi.fn(),
+        ),
+      ).not.toThrow()
+
+      await new Promise((r) => setTimeout(r, 0))
+    })
+  })
+
+  describe('context menu click (vocab)', () => {
+    it('sends TOGGLE_VOCAB to the clicked tab', () => {
+      contextMenuClickListener?.(
+        { menuItemId: 'clearpath-vocab' } as chrome.contextMenus.OnClickData,
+        { id: 42 } as chrome.tabs.Tab,
+      )
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'TOGGLE_VOCAB' })
     })
   })
 })

@@ -45,6 +45,7 @@ export function Popup() {
   const [symbolsEnabled, setSymbolsEnabled] = useState(false)
   const [symbolDensity, setSymbolDensity] = useState<SymbolDensity>('key')
   const [showSymbols, setShowSymbols] = useState(false)
+  const [vocabEnabled, setVocabEnabled] = useState(false)
   const [showProfiles, setShowProfiles] = useState(false)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [newProfileName, setNewProfileName] = useState('')
@@ -80,6 +81,7 @@ export function Popup() {
     setRulerColor(s.rulerColor)
     setSymbolsEnabled(s.symbolsEnabled)
     setSymbolDensity(s.symbolDensity)
+    setVocabEnabled(s.vocabEnabled)
   }, [])
 
   // Load persisted settings and initial TTS / reader state
@@ -136,6 +138,18 @@ export function Popup() {
         // Content script not available
       }
 
+      try {
+        const vocabRes = await chrome.runtime.sendMessage({
+          type: 'GET_VOCAB_STATE',
+        } satisfies Message)
+        if (vocabRes?.ok) {
+          const data = vocabRes.data as { vocabEnabled: boolean }
+          setVocabEnabled(data.vocabEnabled)
+        }
+      } catch {
+        // Content script not available
+      }
+
       setLoading(false)
     }
     load()
@@ -169,6 +183,9 @@ export function Popup() {
       if (message.type === 'SYMBOLS_STATE_CHANGED') {
         setSymbolsEnabled(message.payload.symbolsEnabled)
         setSymbolDensity(message.payload.symbolDensity)
+      }
+      if (message.type === 'VOCAB_STATE_CHANGED') {
+        setVocabEnabled(message.payload.vocabEnabled)
       }
     }
     chrome.runtime.onMessage.addListener(listener)
@@ -243,6 +260,15 @@ export function Popup() {
     try {
       await chrome.runtime.sendMessage({ type: 'TOGGLE_SYMBOLS' } satisfies Message)
       setSymbolsEnabled((prev) => !prev)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const handleToggleVocab = useCallback(async () => {
+    try {
+      await chrome.runtime.sendMessage({ type: 'TOGGLE_VOCAB' } satisfies Message)
+      setVocabEnabled((prev) => !prev)
     } catch {
       // ignore
     }
@@ -389,7 +415,7 @@ export function Popup() {
           <span className="text-white text-xs font-bold">CP</span>
         </div>
         <span className="font-semibold text-sm text-white tracking-wide">ClearPath</span>
-        <span className="ml-auto text-xs text-slate-500 font-medium">v0.5</span>
+        <span className="ml-auto text-xs text-slate-500 font-medium">v0.6</span>
       </div>
 
       {/* Read Aloud section */}
@@ -664,6 +690,23 @@ export function Popup() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Vocabulary */}
+      <div className="border-t border-white/10 px-4 py-2.5 flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+          Vocabulary
+        </span>
+        <button
+          onClick={handleToggleVocab}
+          aria-label="Vocabulary definitions"
+          aria-pressed={vocabEnabled}
+          className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue
+            ${vocabEnabled ? 'bg-brand-blue text-white' : 'bg-navy-800 text-slate-400 border border-white/10'}`}
+        >
+          {vocabEnabled ? 'On' : 'Off'}
+        </button>
       </div>
 
       {/* Profiles */}
