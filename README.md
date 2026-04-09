@@ -52,6 +52,9 @@ Create named accessibility profiles and save your current settings with one clic
 ### 🗓 Vocabulary Support *(planned — Phase 6)*
 Double-click any word for an instant plain-English definition. No API required, fully offline — powered by a bundled dictionary derived from [Simple English Wiktionary](https://simple.wiktionary.org) (CC BY-SA), which is written in plain English by design. A one-time data pipeline processes the Wiktionary XML dump into a compact JSON file bundled with the extension.
 
+### 🗓 Polish *(planned — Phase 7)*
+Full WCAG 2.1 AA accessibility audit of the extension UI, Firefox compatibility, first-run onboarding experience, and submission to the Chrome Web Store and Firefox Add-ons.
+
 ---
 
 ## Installation
