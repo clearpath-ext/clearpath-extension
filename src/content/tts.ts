@@ -4,7 +4,10 @@ import type { TTSState } from '../shared/types'
 let utterance: SpeechSynthesisUtterance | null = null
 let currentState: TTSState = 'idle'
 let stateCallback: ((state: TTSState) => void) | null = null
-let wordCallback: ((charIndex: number, text: string) => void) | null = null
+let wordCallback:
+  | ((charIndex: number, text: string) => void)
+  | null = null
+
 let speakVersion = 0
 
 export function init(
@@ -13,6 +16,7 @@ export function init(
 ): void {
   stateCallback = onState
   wordCallback = onWord
+
   console.debug('[ClearPath] TTS: initialized')
 }
 
@@ -27,6 +31,7 @@ function setState(state: TTSState): void {
 }
 
 export async function speak(text: string): Promise<void> {
+  // Cancel previous speech and invalidate any pending speak request.
   stop()
 
   const trimmed = text.trim()
@@ -35,42 +40,80 @@ export async function speak(text: string): Promise<void> {
   const version = ++speakVersion
   const settings = await getSettings()
 
-  // A newer speak() call arrived while we were awaiting settings — bail out
+  // A newer speak() call or stop() occurred while settings were loading.
   if (version !== speakVersion) return
 
-  console.debug('[ClearPath] TTS: speaking', trimmed.length, 'chars — rate:', settings.ttsRate, 'pitch:', settings.ttsPitch, 'voice:', settings.ttsVoice || '(default)')
+  console.debug(
+    '[ClearPath] TTS: speaking',
+    trimmed.length,
+    'chars — rate:',
+    settings.ttsRate,
+    'pitch:',
+    settings.ttsPitch,
+    'voice:',
+    settings.ttsVoice || '(default)',
+  )
 
-  utterance = new SpeechSynthesisUtterance(trimmed)
-  utterance.rate = settings.ttsRate
-  utterance.pitch = settings.ttsPitch
+  const currentUtterance = new SpeechSynthesisUtterance(trimmed)
+  utterance = currentUtterance
+
+  currentUtterance.rate = settings.ttsRate
+  currentUtterance.pitch = settings.ttsPitch
 
   if (settings.ttsVoice) {
     const voices = window.speechSynthesis.getVoices()
-    const voice = voices.find((v) => v.name === settings.ttsVoice)
-    if (voice) utterance.voice = voice
+    const voice = voices.find((voice) => voice.name === settings.ttsVoice)
+
+    if (voice) {
+      currentUtterance.voice = voice
+    }
   }
 
-  utterance.onstart = () => setState('playing')
-  utterance.onend = () => {
+  currentUtterance.onstart = () => {
+    if (utterance !== currentUtterance) return
+    setState('playing')
+  }
+
+  currentUtterance.onend = () => {
+    if (utterance !== currentUtterance) return
+
+    utterance = null
+    setState('finished')
+  }
+
+  currentUtterance.onerror = (event) => {
+    if (utterance !== currentUtterance) return
+
+    if (
+      event.error !== 'interrupted' &&
+      event.error !== 'canceled'
+    ) {
+      console.error('[ClearPath] TTS error:', event.error)
+    }
+
     utterance = null
     setState('idle')
   }
-  utterance.onerror = (e) => {
-    if (e.error !== 'interrupted' && e.error !== 'canceled') {
-      console.error('[ClearPath] TTS error:', e.error)
-    }
-    utterance = null
-    setState('idle')
-  }
-  utterance.onboundary = (e) => {
-    if (e.name === 'word') {
-      wordCallback?.(e.charIndex, trimmed)
-    }
-  }
-  utterance.onpause = () => setState('paused')
-  utterance.onresume = () => setState('playing')
 
-  window.speechSynthesis.speak(utterance)
+  currentUtterance.onboundary = (event) => {
+    if (utterance !== currentUtterance) return
+
+    if (event.name === 'word') {
+      wordCallback?.(event.charIndex, trimmed)
+    }
+  }
+
+  currentUtterance.onpause = () => {
+    if (utterance !== currentUtterance) return
+    setState('paused')
+  }
+
+  currentUtterance.onresume = () => {
+    if (utterance !== currentUtterance) return
+    setState('playing')
+  }
+
+  window.speechSynthesis.speak(currentUtterance)
 }
 
 export function pause(): void {
@@ -88,11 +131,16 @@ export function resume(): void {
 }
 
 export function stop(): void {
+  // Invalidate pending speak() calls before canceling speech.
+  speakVersion++
+
   if (currentState !== 'idle') {
     console.debug('[ClearPath] TTS: stop')
   }
+
   window.speechSynthesis.cancel()
   utterance = null
+
   if (currentState !== 'idle') {
     setState('idle')
   }

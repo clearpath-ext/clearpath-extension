@@ -1,3 +1,4 @@
+
 import type { TTSState } from '../shared/types'
 
 // Callbacks wired up by content/index.ts
@@ -39,6 +40,14 @@ const CSS = `
     text-transform: uppercase;
     margin-right: 4px;
     user-select: none;
+  }
+
+  .label[data-state='paused'] {
+    color: #F6D99B;
+  }
+
+  .label[data-state='finished'] {
+    color: #86D6A0;
   }
 
   .divider {
@@ -92,13 +101,14 @@ const ICON_STOP = `<svg width="14" height="14" viewBox="0 0 14 14" fill="current
 </svg>`
 
 export function init(cbs: ToolbarCallbacks): void {
-  if (host) return // already initialised — prevents duplicate hosts on re-init
+  if (host) return
 
   console.debug('[ClearPath] Toolbar: initialized')
   callbacks = cbs
 
   host = document.createElement('div')
   host.id = 'clearpath-toolbar-host'
+
   shadow = host.attachShadow({ mode: 'open' })
 
   const style = document.createElement('style')
@@ -111,21 +121,29 @@ export function init(cbs: ToolbarCallbacks): void {
   toolbar.setAttribute('aria-label', 'ClearPath Read Aloud controls')
 
   const label = document.createElement('span')
+  label.id = 'cp-status'
   label.className = 'label'
-  label.textContent = 'Reading'
+  label.textContent = 'Ready'
+  label.dataset.state = 'idle'
+  label.setAttribute('role', 'status')
+  label.setAttribute('aria-live', 'polite')
+  label.setAttribute('aria-atomic', 'true')
 
   const divider = document.createElement('div')
   divider.className = 'divider'
+  divider.setAttribute('aria-hidden', 'true')
 
   const playPauseBtn = document.createElement('button')
   playPauseBtn.id = 'cp-playpause'
-  playPauseBtn.setAttribute('aria-label', 'Pause')
-  playPauseBtn.title = 'Pause'
-  playPauseBtn.innerHTML = ICON_PAUSE
+  playPauseBtn.type = 'button'
+  playPauseBtn.setAttribute('aria-label', 'Read aloud')
+  playPauseBtn.title = 'Read aloud'
+  playPauseBtn.innerHTML = ICON_PLAY
   playPauseBtn.addEventListener('click', () => callbacks?.onPlayPause())
 
   const stopBtn = document.createElement('button')
   stopBtn.id = 'cp-stop'
+  stopBtn.type = 'button'
   stopBtn.setAttribute('aria-label', 'Stop reading')
   stopBtn.title = 'Stop'
   stopBtn.innerHTML = ICON_STOP
@@ -135,14 +153,16 @@ export function init(cbs: ToolbarCallbacks): void {
   toolbar.appendChild(divider)
   toolbar.appendChild(playPauseBtn)
   toolbar.appendChild(stopBtn)
-  shadow.appendChild(toolbar)
 
+  shadow.appendChild(toolbar)
   document.body.appendChild(host)
+
   host.style.display = 'none'
 }
 
 export function show(state: TTSState): void {
   if (!host) return
+
   console.debug('[ClearPath] Toolbar: show —', state)
   host.style.display = 'block'
   updateState(state)
@@ -150,7 +170,7 @@ export function show(state: TTSState): void {
 
 export function hide(): void {
   if (!host) return
-  console.debug('[ClearPath] Toolbar: hide')
+
   host.style.display = 'none'
 }
 
@@ -163,17 +183,38 @@ export function destroy(): void {
 
 export function updateState(state: TTSState): void {
   if (!shadow) return
-  const btn = shadow.getElementById('cp-playpause') as HTMLButtonElement | null
-  /* v8 ignore next -- btn always exists: init() creates it before shadow is ever set */
+
+  const label = shadow.getElementById('cp-status')
+  const btn = shadow.getElementById(
+    'cp-playpause',
+  ) as HTMLButtonElement | null
+
+  if (label) {
+    const statusLabels: Record<TTSState, string> = {
+      idle: 'Ready',
+      playing: 'Reading',
+      paused: 'Paused',
+      finished: 'Finished',
+    }
+
+    label.textContent = statusLabels[state]
+    label.dataset.state = state
+  }
+
+  /* v8 ignore next -- btn always exists after init() */
   if (!btn) return
 
   if (state === 'playing') {
-    btn.setAttribute('aria-label', 'Pause')
+    btn.setAttribute('aria-label', 'Pause reading')
     btn.title = 'Pause'
     btn.innerHTML = ICON_PAUSE
   } else if (state === 'paused') {
     btn.setAttribute('aria-label', 'Resume reading')
     btn.title = 'Resume'
+    btn.innerHTML = ICON_PLAY
+  } else {
+    btn.setAttribute('aria-label', 'Read aloud again')
+    btn.title = 'Read aloud again'
     btn.innerHTML = ICON_PLAY
   }
 }
