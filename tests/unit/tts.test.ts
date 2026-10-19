@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// vi.hoisted ensures the mock factory variable is available when vi.mock is hoisted
+// vi.hoisted makes the mock available to the hoisted vi.mock factory.
 const { mockGetSettings } = vi.hoisted(() => {
   const mockGetSettings = vi.fn().mockResolvedValue({
     ttsVoice: '',
@@ -14,6 +14,7 @@ const { mockGetSettings } = vi.hoisted(() => {
     symbolsEnabled: false,
     symbolDensity: 'key',
   })
+
   return { mockGetSettings }
 })
 
@@ -21,7 +22,7 @@ vi.mock('../../src/lib/storage', () => ({
   getSettings: mockGetSettings,
 }))
 
-// Mock Web Speech API
+// Mock Web Speech API.
 const mockSpeak = vi.fn()
 const mockCancel = vi.fn()
 const mockPause = vi.fn()
@@ -29,6 +30,7 @@ const mockResume = vi.fn()
 const mockGetVoices = vi.fn().mockReturnValue([])
 
 Object.defineProperty(window, 'speechSynthesis', {
+  configurable: true,
   value: {
     speak: mockSpeak,
     cancel: mockCancel,
@@ -57,8 +59,13 @@ const defaultSettings = {
 describe('tts module', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+
+    mockGetSettings.mockReset()
     mockGetSettings.mockResolvedValue(defaultSettings)
-    // Reset state by stopping any active speech
+    mockGetVoices.mockReturnValue([])
+
+    // Replace any previous test's callbacks before resetting the state.
+    tts.init(() => {}, () => {})
     tts.stop()
   })
 
@@ -69,190 +76,351 @@ describe('tts module', () => {
   it('calls speechSynthesis.speak when speak() is called with text', async () => {
     tts.init(() => {}, () => {})
     await tts.speak('Hello world')
+
     expect(mockSpeak).toHaveBeenCalledOnce()
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
     expect(utterance.text).toBe('Hello world')
   })
 
-  it('does not call speak for empty string', async () => {
+  it('does not call speak for empty or whitespace-only text', async () => {
     tts.init(() => {}, () => {})
-    await tts.speak('   ')
+
+    await tts.speak('')
+    await tts.speak('   \n\t  ')
+
     expect(mockSpeak).not.toHaveBeenCalled()
   })
 
   it('applies rate and pitch from settings', async () => {
-    mockGetSettings.mockResolvedValueOnce({ ...defaultSettings, ttsRate: 1.5, ttsPitch: 0.8 })
+    mockGetSettings.mockResolvedValueOnce({
+      ...defaultSettings,
+      ttsRate: 1.5,
+      ttsPitch: 0.8,
+    })
 
     tts.init(() => {}, () => {})
     await tts.speak('Test')
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
+
     expect(utterance.rate).toBe(1.5)
     expect(utterance.pitch).toBe(0.8)
   })
 
   it('selects the configured voice by name when found', async () => {
-    const mockVoice = { name: 'Google US English' } as SpeechSynthesisVoice
+    const mockVoice = {
+      name: 'Google US English',
+    } as SpeechSynthesisVoice
+
     mockGetVoices.mockReturnValue([mockVoice])
-    mockGetSettings.mockResolvedValueOnce({ ...defaultSettings, ttsVoice: 'Google US English' })
+    mockGetSettings.mockResolvedValueOnce({
+      ...defaultSettings,
+      ttsVoice: 'Google US English',
+    })
 
     tts.init(() => {}, () => {})
     await tts.speak('Test')
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
+
     expect(utterance.voice).toBe(mockVoice)
   })
 
-  it('does not set voice when configured name is not in the voices list', async () => {
-    mockGetVoices.mockReturnValue([{ name: 'Other Voice' } as SpeechSynthesisVoice])
-    mockGetSettings.mockResolvedValueOnce({ ...defaultSettings, ttsVoice: 'Missing Voice' })
+  it('does not set a voice when the configured name is not found', async () => {
+    mockGetVoices.mockReturnValue([
+      { name: 'Other Voice' } as SpeechSynthesisVoice,
+    ])
+
+    mockGetSettings.mockResolvedValueOnce({
+      ...defaultSettings,
+      ttsVoice: 'Missing Voice',
+    })
 
     tts.init(() => {}, () => {})
     await tts.speak('Test')
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
+
     expect(utterance.voice).toBeNull()
   })
 
-  it('onend callback sets state to idle', async () => {
+  it('sets state to playing when the utterance starts', async () => {
     const onState = vi.fn()
+
     tts.init(onState, () => {})
     await tts.speak('Test')
+
+    const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
+    utterance.onstart?.(new Event('start') as SpeechSynthesisEvent)
+
+    expect(tts.getState()).toBe('playing')
+    expect(onState).toHaveBeenCalledWith('playing')
+  })
+
+  it('sets state to finished when the utterance ends', async () => {
+    const onState = vi.fn()
+
+    tts.init(onState, () => {})
+    await tts.speak('Test')
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
     utterance.onend?.(new Event('end') as SpeechSynthesisEvent)
-    expect(onState).toHaveBeenCalledWith('idle')
+
+    expect(tts.getState()).toBe('finished')
+    expect(onState).toHaveBeenCalledWith('finished')
   })
 
-  it('onerror callback logs and sets state to idle for non-interrupted errors', async () => {
+  it('logs non-interrupted errors and resets state to idle', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const onState = vi.fn()
-    tts.init(onState, () => {})
-    await tts.speak('Test')
-    const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
-    utterance.onerror?.({ error: 'network' } as SpeechSynthesisErrorEvent)
-    expect(consoleSpy).toHaveBeenCalled()
-    expect(onState).toHaveBeenCalledWith('idle')
-    consoleSpy.mockRestore()
+
+    try {
+      tts.init(onState, () => {})
+      await tts.speak('Test')
+
+      const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
+      utterance.onerror?.({
+        error: 'network',
+      } as SpeechSynthesisErrorEvent)
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[ClearPath] TTS error:',
+        'network',
+      )
+      expect(tts.getState()).toBe('idle')
+      expect(onState).toHaveBeenCalledWith('idle')
+    } finally {
+      consoleSpy.mockRestore()
+    }
   })
 
-  it('onerror callback does not log for interrupted errors', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    tts.init(() => {}, () => {})
-    await tts.speak('Test')
-    const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
-    utterance.onerror?.({ error: 'interrupted' } as SpeechSynthesisErrorEvent)
-    expect(consoleSpy).not.toHaveBeenCalled()
-    consoleSpy.mockRestore()
-  })
+  it.each(['interrupted', 'canceled'])(
+    'does not log the %s error',
+    async (error) => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-  it('onerror callback does not log for canceled errors', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    tts.init(() => {}, () => {})
-    await tts.speak('Test')
-    const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
-    utterance.onerror?.({ error: 'canceled' } as SpeechSynthesisErrorEvent)
-    expect(consoleSpy).not.toHaveBeenCalled()
-    consoleSpy.mockRestore()
-  })
+      try {
+        tts.init(() => {}, () => {})
+        await tts.speak('Test')
 
-  it('onboundary callback forwards word events to the word callback', async () => {
+        const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
+        utterance.onerror?.({
+          error,
+        } as SpeechSynthesisErrorEvent)
+
+        expect(consoleSpy).not.toHaveBeenCalled()
+        expect(tts.getState()).toBe('idle')
+      } finally {
+        consoleSpy.mockRestore()
+      }
+    },
+  )
+
+  it('forwards word boundary events to the word callback', async () => {
     const onWord = vi.fn()
+
     tts.init(() => {}, onWord)
     await tts.speak('Hello world')
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
-    utterance.onboundary?.({ name: 'word', charIndex: 5 } as SpeechSynthesisEvent)
+    utterance.onboundary?.({
+      name: 'word',
+      charIndex: 5,
+    } as SpeechSynthesisEvent)
+
     expect(onWord).toHaveBeenCalledWith(5, 'Hello world')
   })
 
-  it('onboundary callback ignores non-word boundary events', async () => {
+  it('ignores non-word boundary events', async () => {
     const onWord = vi.fn()
+
     tts.init(() => {}, onWord)
     await tts.speak('Hello world')
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
-    utterance.onboundary?.({ name: 'sentence', charIndex: 0 } as SpeechSynthesisEvent)
+    utterance.onboundary?.({
+      name: 'sentence',
+      charIndex: 0,
+    } as SpeechSynthesisEvent)
+
     expect(onWord).not.toHaveBeenCalled()
   })
 
   it('calls speechSynthesis.cancel when stop() is called', () => {
     tts.stop()
+
     expect(mockCancel).toHaveBeenCalled()
+  })
+
+  it('sets the state to idle when stopping active playback', async () => {
+    const onState = vi.fn()
+
+    tts.init(onState, () => {})
+    await tts.speak('Stop test')
+
+    const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
+    utterance.onstart?.(new Event('start') as SpeechSynthesisEvent)
+
+    onState.mockClear()
+    tts.stop()
+
+    expect(mockCancel).toHaveBeenCalled()
+    expect(tts.getState()).toBe('idle')
+    expect(onState).toHaveBeenCalledWith('idle')
   })
 
   it('calls speechSynthesis.pause when pause() is called during playback', async () => {
-    tts.init(
-      (state) => {
-        if (state === 'playing') tts.pause()
-      },
-      () => {},
-    )
+    tts.init(() => {}, () => {})
     await tts.speak('Pause test')
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
     utterance.onstart?.(new Event('start') as SpeechSynthesisEvent)
+
     tts.pause()
-    expect(mockPause).toHaveBeenCalled()
+
+    expect(mockPause).toHaveBeenCalledOnce()
   })
 
-  it('onresume callback sets state to playing', async () => {
+  it('does not call pause unless the state is playing', () => {
+    tts.init(() => {}, () => {})
+
+    tts.pause()
+
+    expect(mockPause).not.toHaveBeenCalled()
+  })
+
+  it('sets state to paused when the utterance pauses', async () => {
     const onState = vi.fn()
+
+    tts.init(onState, () => {})
+    await tts.speak('Pause test')
+
+    const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
+    utterance.onpause?.(new Event('pause') as SpeechSynthesisEvent)
+
+    expect(tts.getState()).toBe('paused')
+    expect(onState).toHaveBeenCalledWith('paused')
+  })
+
+  it('sets state to playing when the utterance resumes', async () => {
+    const onState = vi.fn()
+
     tts.init(onState, () => {})
     await tts.speak('Resume test')
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
-    utterance.onresume?.(new Event('resume'))
+    utterance.onresume?.(new Event('resume') as SpeechSynthesisEvent)
+
+    expect(tts.getState()).toBe('playing')
     expect(onState).toHaveBeenCalledWith('playing')
   })
 
-  it('calls speechSynthesis.resume() when resume() is called in the paused state', async () => {
+  it('calls speechSynthesis.resume when state is paused', async () => {
     tts.init(() => {}, () => {})
     await tts.speak('Resume test')
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
-    // Trigger onpause to set internal state to 'paused'
-    utterance.onpause?.(new Event('pause'))
+    utterance.onpause?.(new Event('pause') as SpeechSynthesisEvent)
+
     tts.resume()
-    expect(mockResume).toHaveBeenCalled()
+
+    expect(mockResume).toHaveBeenCalledOnce()
   })
 
-  it('does not call speechSynthesis.resume() when not in the paused state', () => {
+  it('does not resume when state is not paused', () => {
     tts.init(() => {}, () => {})
-    // State is 'idle' — resume() guard prevents the call
+
     tts.resume()
+
     expect(mockResume).not.toHaveBeenCalled()
   })
 
-  it('fires state callback on stop', () => {
+  it('ignores callbacks from an older utterance', async () => {
     const onState = vi.fn()
+
     tts.init(onState, () => {})
-    tts.stop()
-    expect(mockCancel).toHaveBeenCalled()
+    await tts.speak('First utterance')
+
+    const firstUtterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
+
+    await tts.speak('Second utterance')
+
+    const secondUtterance = mockSpeak.mock.calls[1][0] as SpeechSynthesisUtterance
+
+    onState.mockClear()
+
+    // An old callback must not overwrite the second utterance's state.
+    firstUtterance.onend?.(new Event('end') as SpeechSynthesisEvent)
+
+    expect(tts.getState()).toBe('idle')
+    expect(onState).not.toHaveBeenCalled()
+
+    secondUtterance.onstart?.(new Event('start') as SpeechSynthesisEvent)
+    expect(tts.getState()).toBe('playing')
   })
 
-  it('returns voice list from speechSynthesis', () => {
-    const mockVoices = [
-      { name: 'Google US English' },
-      { name: 'Google UK English Female' },
-    ] as SpeechSynthesisVoice[]
-    mockGetVoices.mockReturnValue(mockVoices)
-    expect(tts.getVoices()).toHaveLength(2)
-  })
+  it('does not start speech if stop() is called while settings are loading', async () => {
+    let resolveSettings!: (settings: typeof defaultSettings) => void
 
-  it('only speaks the last call when two speak() calls race on getSettings', async () => {
-    let resolveFirst!: (s: typeof defaultSettings) => void
-    let resolveSecond!: (s: typeof defaultSettings) => void
-    const p1 = new Promise<typeof defaultSettings>((r) => (resolveFirst = r))
-    const p2 = new Promise<typeof defaultSettings>((r) => (resolveSecond = r))
+    const pendingSettings = new Promise<typeof defaultSettings>((resolve) => {
+      resolveSettings = resolve
+    })
 
-    mockGetSettings.mockReturnValueOnce(p1).mockReturnValueOnce(p2)
+    mockGetSettings.mockReturnValueOnce(pendingSettings)
 
     tts.init(() => {}, () => {})
 
-    // Fire both without awaiting — second increments speakVersion past first
+    const pendingSpeak = tts.speak('Do not speak')
+    tts.stop()
+
+    resolveSettings(defaultSettings)
+    await pendingSpeak
+
+    expect(mockSpeak).not.toHaveBeenCalled()
+  })
+
+  it('only speaks the last call when speak() calls race on getSettings()', async () => {
+    let resolveFirst!: (settings: typeof defaultSettings) => void
+    let resolveSecond!: (settings: typeof defaultSettings) => void
+
+    const firstSettings = new Promise<typeof defaultSettings>((resolve) => {
+      resolveFirst = resolve
+    })
+
+    const secondSettings = new Promise<typeof defaultSettings>((resolve) => {
+      resolveSecond = resolve
+    })
+
+    mockGetSettings
+      .mockReturnValueOnce(firstSettings)
+      .mockReturnValueOnce(secondSettings)
+
+    tts.init(() => {}, () => {})
+
     const first = tts.speak('first')
     const second = tts.speak('second')
 
-    // Resolve second first — it proceeds; when first resolves it must bail
     resolveSecond(defaultSettings)
     await second
+
     resolveFirst(defaultSettings)
     await first
 
     expect(mockSpeak).toHaveBeenCalledOnce()
+
     const utterance = mockSpeak.mock.calls[0][0] as SpeechSynthesisUtterance
     expect(utterance.text).toBe('second')
+  })
+
+  it('returns the available voice list', () => {
+    const mockVoices = [
+      { name: 'Google US English' },
+      { name: 'Google UK English Female' },
+    ] as SpeechSynthesisVoice[]
+
+    mockGetVoices.mockReturnValue(mockVoices)
+
+    expect(tts.getVoices()).toEqual(mockVoices)
   })
 })
