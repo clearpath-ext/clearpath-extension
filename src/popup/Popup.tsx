@@ -826,99 +826,104 @@ export function Popup() {
       </div>
 
       {/* Voice settings */}
-      <div className="border-t border-white/10">
-        <button
-          onClick={() => setSettingsOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold
-            text-slate-400 uppercase tracking-widest hover:text-slate-300 transition-colors
-            focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-2 focus-visible:ring-brand-blue"
-          aria-expanded={settingsOpen}
+      <button
+        type="button"
+        id="voice-settings-toggle"
+        aria-expanded={settingsOpen}
+        aria-controls="voice-settings-panel"
+        onClick={() => setSettingsOpen((open) => !open)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold
+          text-slate-400 uppercase tracking-widest hover:text-slate-300 transition-colors
+          focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-2 focus-visible:ring-brand-blue"
+      >
+        <span>Voice Settings</span>
+
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className={`transition-transform ${settingsOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
         >
-          <span>Voice Settings</span>
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className={`transition-transform ${settingsOpen ? 'rotate-180' : ''}`}
-            aria-hidden="true"
+          <path d="M2 4l4 4 4-4" />
+        </svg>
+      </button>
+
+      <div
+        id="voice-settings-panel"
+        aria-labelledby="voice-settings-toggle"
+        hidden={!settingsOpen}
+        className="px-4 pb-4 space-y-3"
+      >
+        {/* Voice selector */}
+        <div>
+          <label className="block text-xs text-slate-400 mb-1" htmlFor="cp-voice">
+            Voice
+          </label>
+          <select
+            id="cp-voice"
+            value={selectedVoice}
+            onChange={(e) => handleVoiceChange(e.target.value)}
+            className="w-full bg-navy-800 border border-white/10 rounded-md px-2 py-1.5
+              text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
           >
-            <path d="M2 4l4 4 4-4" />
-          </svg>
-        </button>
+            <option value="">Default</option>
+            {voices.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        {settingsOpen && (
-          <div className="px-4 pb-4 space-y-3">
-            {/* Voice selector */}
-            <div>
-              <label className="block text-xs text-slate-400 mb-1" htmlFor="cp-voice">
-                Voice
-              </label>
-              <select
-                id="cp-voice"
-                value={selectedVoice}
-                onChange={(e) => handleVoiceChange(e.target.value)}
-                className="w-full bg-navy-800 border border-white/10 rounded-md px-2 py-1.5
-                  text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-              >
-                <option value="">Default</option>
-                {voices.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Rate slider */}
-            <div>
-              <label className="flex justify-between text-xs text-slate-400 mb-1" htmlFor="cp-rate">
-                <span>Speed</span>
-                <span className="text-slate-400">{rate.toFixed(1)}\u00d7</span>
-              </label>
-              <input
-                id="cp-rate"
-                type="range"
-                min="0.5"
-                max="2"
-                step="0.1"
-                value={rate}
-                onChange={(e) => handleRateChange(Number(e.target.value))}
-                className="w-full"
-                aria-label={`Speech speed: ${rate.toFixed(1)} times`}
-              />
-              <div className="flex justify-between text-xs text-slate-400 mt-0.5">
-                <span>0.5\u00d7</span>
-                <span>2\u00d7</span>
-              </div>
-            </div>
-
-            {/* Pitch slider */}
-            <div>
-              <label className="flex justify-between text-xs text-slate-400 mb-1" htmlFor="cp-pitch">
-                <span>Pitch</span>
-                <span className="text-slate-400">{pitch.toFixed(1)}</span>
-              </label>
-              <input
-                id="cp-pitch"
-                type="range"
-                min="0.5"
-                max="2"
-                step="0.1"
-                value={pitch}
-                onChange={(e) => handlePitchChange(Number(e.target.value))}
-                className="w-full"
-                aria-label={`Speech pitch: ${pitch.toFixed(1)}`}
-              />
-              <div className="flex justify-between text-xs text-slate-400 mt-0.5">
-                <span>Low</span>
-                <span>High</span>
-              </div>
-            </div>
+        {/* Rate slider */}
+        <div>
+          <label className="flex justify-between text-xs text-slate-400 mb-1" htmlFor="cp-rate">
+            <span>Speed</span>
+            <span className="text-slate-400">{rate.toFixed(1)}\u00d7</span>
+          </label>
+          <input
+            id="cp-rate"
+            type="range"
+            min="0.5"
+            max="2"
+            step="0.1"
+            value={rate}
+            onChange={(e) => handleRateChange(Number(e.target.value))}
+            className="w-full"
+            aria-label={`Speech speed: ${rate.toFixed(1)} times`}
+          />
+          <div className="flex justify-between text-xs text-slate-400 mt-0.5">
+            <span>0.5\u00d7</span>
+            <span>2\u00d7</span>
           </div>
-        )}
+        </div>
+
+        {/* Pitch slider */}
+        <div>
+          <label className="flex justify-between text-xs text-slate-400 mb-1" htmlFor="cp-pitch">
+            <span>Pitch</span>
+            <span className="text-slate-400">{pitch.toFixed(1)}</span>
+          </label>
+          <input
+            id="cp-pitch"
+            type="range"
+            min="0.5"
+            max="2"
+            step="0.1"
+            value={pitch}
+            onChange={(e) => handlePitchChange(Number(e.target.value))}
+            className="w-full"
+            aria-label={`Speech pitch: ${pitch.toFixed(1)}`}
+          />
+          <div className="flex justify-between text-xs text-slate-400 mt-0.5">
+            <span>Low</span>
+            <span>High</span>
+          </div>
+        </div>
       </div>
 
       {/* Reader settings */}
