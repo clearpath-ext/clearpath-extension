@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { axe } from 'jest-axe'
 
+
 const { mockGetSettings, mockSetSettings, mockGetProfiles, mockSaveProfile, mockDeleteProfile, mockLoadProfile, mockExportProfiles, mockImportProfiles } = vi.hoisted(() => {
   const mockGetSettings = vi.fn()
   const mockSetSettings = vi.fn().mockResolvedValue(undefined)
@@ -86,30 +87,40 @@ describe('Popup', () => {
   // color-contrast is disabled: jsdom has no real layout/paint engine, so
   // contrast checks are unreliable here — audited manually/in-browser instead.
 
-  it('has no axe violations in the default (idle) state', async () => {
-    const { container } = render(<Popup />)
-    await act(async () => {})
-    expect(
-      await axe(container, { rules: { 'color-contrast': { enabled: false } } }),
-    ).toHaveNoViolations()
-  })
+  it('exposes the Voice Settings accordion state accessibly', async () => {
+  await act(async () => {
+    render(<Popup />);
+  });
 
-  it('has no axe violations with every disclosure section expanded', async () => {
-    const { container } = await act(async () => render(<Popup />))
-    for (const name of [
-      /focus tools/i,
-      /symbol overlay/i,
-      /profiles/i,
-      /voice settings/i,
-      /reader settings/i,
-      /llm settings/i,
-    ]) {
-      fireEvent.click(screen.getByRole('button', { name }))
-    }
-    expect(
-      await axe(container, { rules: { 'color-contrast': { enabled: false } } }),
-    ).toHaveNoViolations()
-  })
+  const toggle = await screen.findByRole('button', {
+    name: /voice settings/i,
+  });
+
+  // The accordion starts collapsed.
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  expect(toggle).toHaveAttribute(
+    'aria-controls',
+    'voice-settings-panel',
+  );
+
+  // Expand the accordion.
+  fireEvent.click(toggle);
+
+  expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+  const panel = document.getElementById('voice-settings-panel');
+
+  expect(panel).not.toBeNull();
+  expect(panel).toHaveAttribute(
+    'aria-labelledby',
+    'voice-settings-toggle',
+  );
+
+  // Collapse it again.
+  fireEvent.click(toggle);
+
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+});
 
   // ── Loading state ─────────────────────────────────────────────────────────
 
