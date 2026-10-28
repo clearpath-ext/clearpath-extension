@@ -1,6 +1,7 @@
 import { Readability } from '@mozilla/readability'
 import { getSettings, setSettings } from '../lib/storage'
 import type { Settings, ReaderFont, ReaderTheme, ReaderColumnWidth } from '../shared/types'
+import { createLogoIcon } from '../shared/logo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -92,14 +93,6 @@ function buildCSS(settings: Settings): string {
     .cp-brand-icon {
       width: 20px;
       height: 20px;
-      border-radius: 5px;
-      background: linear-gradient(135deg, #5B9BF8, #34D399);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 9px;
-      font-weight: 800;
       flex-shrink: 0;
     }
     .cp-theme-light    .cp-brand { color: #374151; }
@@ -353,10 +346,8 @@ function buildHeader(settings: Settings, onSettingChange: (patch: Partial<Settin
   // Brand
   const brand = document.createElement('div')
   brand.className = 'cp-brand'
-  const icon = document.createElement('div')
-  icon.className = 'cp-brand-icon'
-  icon.textContent = 'CP'
-  icon.setAttribute('aria-hidden', 'true')
+  const icon = createLogoIcon(20, 'cp-reader-logo')
+  icon.classList.add('cp-brand-icon')
   const brandLabel = document.createElement('span')
   brandLabel.textContent = 'Reading Mode'
   brand.appendChild(icon)

@@ -411,9 +411,7 @@ export function Popup() {
     <div className="flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
-        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-brand-blue to-brand-green flex items-center justify-center">
-          <span className="text-navy-900 text-xs font-bold">CP</span>
-        </div>
+        <img src="/icons/clearpath-icon.svg" alt="" width={24} height={24} className="w-6 h-6" />
         <span className="font-semibold text-sm text-white tracking-wide">ClearPath</span>
         <span className="ml-auto text-xs text-slate-400 font-medium">v0.6</span>
       </div>
