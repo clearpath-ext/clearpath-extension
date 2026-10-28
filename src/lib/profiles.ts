@@ -9,9 +9,23 @@ export const MAX_PROFILES = 10
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
+// Profiles get exported and handed to other people, so they must never carry
+// the user's API key (it lives only on this device; see storage.ts).
+function withoutApiKey(settings: Partial<Settings>): Partial<Settings> {
+  const { apiKey: _key, ...rest } = settings
+  return rest
+}
+
 async function readProfiles(): Promise<Profile[]> {
   const result = await chrome.storage.sync.get(PROFILES_KEY)
-  return (result[PROFILES_KEY] as Profile[] | undefined) ?? []
+  const profiles = (result[PROFILES_KEY] as Profile[] | undefined) ?? []
+  // Profiles saved by older versions included the key: strip it and re-save.
+  if (profiles.some((p) => p.settings && 'apiKey' in p.settings)) {
+    const cleaned = profiles.map((p) => ({ ...p, settings: withoutApiKey(p.settings) }))
+    await writeProfiles(cleaned)
+    return cleaned
+  }
+  return profiles
 }
 
 async function writeProfiles(profiles: Profile[]): Promise<void> {
@@ -30,7 +44,7 @@ export async function saveProfile(name: string): Promise<Profile> {
   if (profiles.length >= MAX_PROFILES) {
     throw new Error(`Maximum of ${MAX_PROFILES} profiles reached`)
   }
-  const settings = await getSettings()
+  const settings = withoutApiKey(await getSettings())
   const profile: Profile = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name: name.trim(),
@@ -50,7 +64,7 @@ export async function deleteProfile(id: string): Promise<void> {
 }
 
 export async function loadProfile(profile: Profile): Promise<void> {
-  await setSettings(profile.settings as Partial<Settings>)
+  await setSettings(withoutApiKey(profile.settings))
   console.debug('[ClearPath] Profiles: loaded —', profile.name)
 }
 
@@ -88,7 +102,7 @@ export async function importProfiles(json: string): Promise<Profile[]> {
     merged.push({
       id: typeof p.id === 'string' ? p.id : `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name: p.name as string,
-      settings: p.settings as Partial<Settings>,
+      settings: withoutApiKey(p.settings as Partial<Settings>),
       createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
     })
     added++

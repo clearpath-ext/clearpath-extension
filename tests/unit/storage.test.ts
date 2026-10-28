@@ -31,6 +31,50 @@ describe('storage', () => {
     })
   })
 
+  describe('API key storage', () => {
+    it('reads the API key from device-only local storage', async () => {
+      vi.mocked(chrome.storage.sync.get).mockResolvedValue({ settings: { ttsRate: 1.2 } })
+      vi.mocked(chrome.storage.local.get).mockResolvedValue({ apiKey: 'sk-local' })
+      const result = await getSettings()
+      expect(result.apiKey).toBe('sk-local')
+      expect(result.ttsRate).toBe(1.2)
+    })
+
+    it('moves a key left in sync storage by older versions to local storage', async () => {
+      vi.mocked(chrome.storage.sync.get).mockResolvedValue({ settings: { ttsRate: 1.2, apiKey: 'sk-old' } })
+      vi.mocked(chrome.storage.local.get).mockResolvedValue({})
+      const result = await getSettings()
+      expect(result.apiKey).toBe('sk-old')
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({ apiKey: 'sk-old' })
+      expect(chrome.storage.sync.set).toHaveBeenCalledWith({ settings: { ttsRate: 1.2 } })
+    })
+
+    it('keeps an existing local key when cleaning a stale synced one', async () => {
+      vi.mocked(chrome.storage.sync.get).mockResolvedValue({ settings: { apiKey: 'sk-old' } })
+      vi.mocked(chrome.storage.local.get).mockResolvedValue({ apiKey: 'sk-current' })
+      const result = await getSettings()
+      expect(result.apiKey).toBe('sk-current')
+      expect(chrome.storage.local.set).not.toHaveBeenCalled()
+      expect(chrome.storage.sync.set).toHaveBeenCalledWith({ settings: {} })
+    })
+
+    it('saves the API key locally and never to sync storage', async () => {
+      vi.mocked(chrome.storage.sync.get).mockResolvedValue({ settings: {} })
+      vi.mocked(chrome.storage.local.get).mockResolvedValue({})
+      await setSettings({ apiKey: 'sk-new', ttsRate: 1.4 })
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({ apiKey: 'sk-new' })
+      const synced = vi.mocked(chrome.storage.sync.set).mock.calls.at(-1)![0] as { settings: Record<string, unknown> }
+      expect(synced.settings.ttsRate).toBe(1.4)
+      expect(synced.settings).not.toHaveProperty('apiKey')
+    })
+
+    it('only touches local storage when the patch is just the API key', async () => {
+      await setSettings({ apiKey: 'sk-only' })
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({ apiKey: 'sk-only' })
+      expect(chrome.storage.sync.set).not.toHaveBeenCalled()
+    })
+  })
+
   describe('setSettings', () => {
     it('merges patch into current settings and saves', async () => {
       vi.mocked(chrome.storage.sync.get).mockResolvedValue({
@@ -102,14 +146,30 @@ describe('storage', () => {
   })
 
   describe('onSettingsChanged', () => {
-    it('calls callback when the settings key changes', () => {
+    it('calls callback with fresh settings when the synced settings change', async () => {
+      vi.mocked(chrome.storage.sync.get).mockResolvedValue({ settings: { ttsRate: 1.8 } })
+      vi.mocked(chrome.storage.local.get).mockResolvedValue({ apiKey: 'sk-local' })
       const callback = vi.fn()
       onSettingsChanged(callback)
       const listener = vi.mocked(chrome.storage.onChanged.addListener).mock.calls[0][0]
 
-      listener({ settings: { newValue: { ...DEFAULT_SETTINGS, ttsRate: 1.8 } } }, 'sync')
+      listener({ settings: { newValue: { ttsRate: 1.8 } } }, 'sync')
 
-      expect(callback).toHaveBeenCalledWith(expect.objectContaining({ ttsRate: 1.8 }))
+      await vi.waitFor(() =>
+        expect(callback).toHaveBeenCalledWith(expect.objectContaining({ ttsRate: 1.8, apiKey: 'sk-local' })),
+      )
+    })
+
+    it('calls callback when the device-only API key changes', async () => {
+      vi.mocked(chrome.storage.sync.get).mockResolvedValue({})
+      vi.mocked(chrome.storage.local.get).mockResolvedValue({ apiKey: 'sk-new' })
+      const callback = vi.fn()
+      onSettingsChanged(callback)
+      const listener = vi.mocked(chrome.storage.onChanged.addListener).mock.calls[0][0]
+
+      listener({ apiKey: { newValue: 'sk-new' } }, 'local')
+
+      await vi.waitFor(() => expect(callback).toHaveBeenCalledWith(expect.objectContaining({ apiKey: 'sk-new' })))
     })
 
     it('does not call callback for unrelated key changes', () => {

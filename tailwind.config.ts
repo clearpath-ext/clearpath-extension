@@ -12,7 +12,7 @@ export default {
         },
         brand: {
           blue: '#5B9BF8',
-          green: '#34D399',
+          green: '#6DD9A8',
         },
       },
     },

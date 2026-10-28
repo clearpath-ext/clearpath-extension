@@ -63,7 +63,8 @@ describe('profiles', () => {
       const profile = await saveProfile('My Profile')
       expect(typeof profile.id).toBe('string')
       expect(profile.name).toBe('My Profile')
-      expect(profile.settings).toMatchObject({ ...DEFAULT_SETTINGS })
+      const { apiKey: _key, ...shareable } = DEFAULT_SETTINGS
+      expect(profile.settings).toEqual(shareable)
       expect(typeof profile.createdAt).toBe('number')
     })
 
@@ -195,5 +196,41 @@ describe('profiles', () => {
       expect(typeof result[0].id).toBe('string')
       expect(typeof result[0].createdAt).toBe('number')
     })
+  })
+})
+
+describe('profiles never carry the API key', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, apiKey: 'sk-secret' })
+    mockSetSettings.mockResolvedValue(undefined)
+    vi.mocked(chrome.storage.sync.get).mockResolvedValue({})
+    vi.mocked(chrome.storage.sync.set).mockResolvedValue(undefined)
+  })
+
+  it('leaves the key out of a newly saved profile', async () => {
+    const profile = await saveProfile('Classroom')
+    expect(profile.settings).not.toHaveProperty('apiKey')
+  })
+
+  it('strips keys from profiles saved by older versions and re-saves them', async () => {
+    vi.mocked(chrome.storage.sync.get).mockResolvedValue({
+      clearpath_profiles: [makeProfile({ settings: { ttsRate: 1.2, apiKey: 'sk-old' } })],
+    })
+    const profiles = await getProfiles()
+    expect(profiles[0].settings).toEqual({ ttsRate: 1.2 })
+    const saved = vi.mocked(chrome.storage.sync.set).mock.calls[0][0] as { clearpath_profiles: Profile[] }
+    expect(saved.clearpath_profiles[0].settings).not.toHaveProperty('apiKey')
+  })
+
+  it("doesn't overwrite the user's key when loading a profile", async () => {
+    await loadProfile(makeProfile({ settings: { ttsRate: 1.5, apiKey: 'sk-someone-else' } }))
+    expect(mockSetSettings).toHaveBeenCalledWith({ ttsRate: 1.5 })
+  })
+
+  it('drops keys from imported profile files', async () => {
+    const json = JSON.stringify([{ name: 'Shared', settings: { ttsRate: 1.1, apiKey: 'sk-leaked' } }])
+    const merged = await importProfiles(json)
+    expect(merged.at(-1)!.settings).toEqual({ ttsRate: 1.1 })
   })
 })

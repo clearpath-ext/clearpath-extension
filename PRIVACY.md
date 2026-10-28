@@ -22,11 +22,13 @@ ClearPath does not collect, store, transmit, or share any personal data, browsin
 
 Your settings (font size, color theme, TTS voice, etc.) are saved using your browser's built-in `storage.sync` API. This syncs your settings across your own devices via your browser account (e.g., your Google account for Chrome). ClearPath never sees or touches this data — it goes directly between your browser and your browser account.
 
+**Your LLM API key is the exception.** It's stored only on the device where you entered it (`storage.local`), is never synced to your browser account, and is never included in saved or exported profiles.
+
 ---
 
 ## The LLM Simplification Feature
 
-If you use the **Simplify** or **Summarize** features, selected text is sent to your chosen LLM API provider (OpenAI, Anthropic, or a local Ollama instance):
+If you use the **Simplify** feature, selected text is sent to your chosen LLM API provider (OpenAI, Anthropic, or a local Ollama instance):
 
 - The text goes **directly from your browser to the API provider**
 - It does **not** pass through any ClearPath server — there is no ClearPath server

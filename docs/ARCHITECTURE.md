@@ -119,7 +119,7 @@ Each module exports an `init()` function. `index.ts` coordinates them.
 
 ## Storage Schema
 
-All settings are stored in `chrome.storage.sync` (syncs across the user's browser devices). Always use the typed wrappers in `src/lib/storage.ts` — never call the Chrome API directly.
+Settings are stored in `chrome.storage.sync` (syncs across the user's browser devices), except `apiKey`, which `storage.ts` keeps in `chrome.storage.local` so it stays on one device (a key synced by an older version is moved there on first read). Profiles never contain `apiKey`. Always use the typed wrappers in `src/lib/storage.ts` — never call the Chrome API directly.
 
 ```typescript
 // src/shared/types.ts
@@ -128,7 +128,7 @@ interface Settings {
   ttsRate: number;          // 0.5 – 2.0
   ttsPitch: number;         // 0.5 – 2.0
   llmProvider: 'openai' | 'anthropic' | 'ollama' | 'none';
-  apiKey: string;           // encrypted at rest by Chrome
+  apiKey: string;           // device-only: chrome.storage.local, never synced or exported
   ollamaUrl: string;        // default: 'http://localhost:11434'
   ollamaModel: string;      // default: 'llama3.2'
   readingLevel: 3 | 5 | 8; // Grade level for Simplify

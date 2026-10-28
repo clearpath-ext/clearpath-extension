@@ -127,7 +127,7 @@ src/
 ├── lib/
 │   ├── llm.ts              # LLM provider abstraction (OpenAI / Anthropic / Ollama)
 │   ├── profiles.ts         # Named profiles: save/load/delete/export/import
-│   └── storage.ts          # chrome.storage.sync wrappers
+│   └── storage.ts          # settings wrappers (sync; API key in local)
 ├── popup/
 │   ├── Popup.tsx           # React popup: Read Aloud + Voice + LLM + Reader + Focus Tools + Symbols + Vocab + Profiles
 │   └── index.tsx
@@ -212,7 +212,7 @@ Quick start:
 ## Privacy
 
 - Zero data collection. No analytics, no telemetry, no tracking of any kind.
-- Settings stored locally via `chrome.storage.sync` — synced to your browser account, not our servers.
+- Settings stored via `chrome.storage.sync` — synced to your browser account, not our servers. Your LLM API key stays on the device you entered it on (`chrome.storage.local`) and is never put in exported profiles.
 - LLM calls are direct — text goes from your browser to your API provider. We have no server.
 - Fully open source — every line of code is auditable.
 
