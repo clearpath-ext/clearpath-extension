@@ -876,7 +876,7 @@ export function Popup() {
             <div>
               <label className="flex justify-between text-xs text-slate-400 mb-1" htmlFor="cp-rate">
                 <span>Speed</span>
-                <span className="text-slate-400">{rate.toFixed(1)}\u00d7</span>
+                <span className="text-slate-400">{rate.toFixed(1)}×</span>
               </label>
               <input
                 id="cp-rate"
@@ -890,8 +890,8 @@ export function Popup() {
                 aria-label={`Speech speed: ${rate.toFixed(1)} times`}
               />
               <div className="flex justify-between text-xs text-slate-400 mt-0.5">
-                <span>0.5\u00d7</span>
-                <span>2\u00d7</span>
+                <span>0.5×</span>
+                <span>2×</span>
               </div>
             </div>
 
@@ -1110,7 +1110,7 @@ export function Popup() {
                   type="password"
                   value={apiKey}
                   onChange={(e) => handleApiKeyChange(e.target.value)}
-                  placeholder="sk-\u2026"
+                  placeholder="sk-…"
                   className="w-full bg-navy-800 border border-white/10 rounded-md px-2 py-1.5
                     text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
                 />

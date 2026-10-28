@@ -177,6 +177,33 @@ describe('Popup', () => {
     expect(screen.getByRole('option', { name: 'Google UK English' })).toBeInTheDocument()
   })
 
+  // JSX text and attribute strings don't process \u escapes, so these must be
+  // real characters: the popup once rendered a literal "1.0\u00d7".
+  it('shows a real multiplication sign in the speed labels', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /voice settings/i }))
+
+    expect(screen.getByText('1.0×')).toBeInTheDocument()
+    expect(screen.getByText('0.5×')).toBeInTheDocument()
+    expect(screen.getByText('2×')).toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('\\u00d7')
+  })
+
+  it('shows a real ellipsis in the API key placeholder', async () => {
+    mockGetSettings.mockResolvedValue({ ...defaultSettings, llmProvider: 'openai' })
+
+    await act(async () => {
+      render(<Popup />)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /llm settings/i }))
+
+    expect(screen.getByLabelText(/api key/i)).toHaveAttribute('placeholder', 'sk-…')
+  })
+
   it('saves selected voice on change', async () => {
     mockGetVoices.mockReturnValue([{ name: 'Samantha' }] as SpeechSynthesisVoice[])
 
