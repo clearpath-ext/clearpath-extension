@@ -154,6 +154,7 @@ Quick start:
 - Double-click any word to see a plain-English definition in a Shadow DOM tooltip
 - 21,881-entry offline dictionary bundled with the extension (562 KB gzip) — no API required
 - Dictionary derived from Simple English Wiktionary XML dump via `scripts/build-dictionary.js`
+- Symbol Overlay pictograms (99 PNGs in `public/symbols/`) downloaded from the ARASAAC API via `scripts/fetch-symbols.js`; the chosen pictogram id per word is pinned in `public/symbols/index.json`
 - Lazy loading: dictionary only fetches on first double-click, then cached for the session
 - Dismiss with Escape or click outside; toggle from popup or right-click context menu
 - 100% test coverage (414 tests across 17 files)
