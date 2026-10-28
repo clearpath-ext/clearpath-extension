@@ -498,7 +498,7 @@ export function Popup() {
         {/* Right-click hint (idle state) */}
         {!isActive && (
           <p className="text-xs text-slate-400 text-center mt-2">
-            Or right-click selected text \u2192 Read Aloud
+            Or right-click selected text → Read Aloud
           </p>
         )}
       </div>
