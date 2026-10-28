@@ -38,10 +38,15 @@ You don't have to be a developer to make a meaningful contribution.
 
 ### Setup
 
+First, [fork the repository](https://github.com/clearpath-ext/clearpath-extension/fork) into your GitHub account. Replace `YOUR_GITHUB_USERNAME` below with the account that owns your fork. Cloning your fork makes `origin` a repository you can push to; `upstream` points to the original project.
+
 ```bash
-# Clone the repo
-git clone https://github.com/clearpath-ext/clearpath-extension.git
+# Clone your fork
+git clone https://github.com/YOUR_GITHUB_USERNAME/clearpath-extension.git
 cd clearpath-extension
+
+# Keep a reference to the original project
+git remote add upstream https://github.com/clearpath-ext/clearpath-extension.git
 
 # Install dependencies
 pnpm install
@@ -124,10 +129,10 @@ chore: upgrade Vite to 5.2
 
 ## Pull Request Process
 
-1. Fork the repo and create a branch: `git checkout -b feat/your-feature-name`
+1. In your fork's local checkout, create a branch: `git checkout -b feat/your-feature-name`
 2. Make your changes
 3. Run `pnpm lint && pnpm typecheck && pnpm test`
-4. Push and open a PR against `main`
+4. Push your branch to your fork: `git push -u origin feat/your-feature-name`. Open a PR from that branch against `clearpath-ext/clearpath-extension:main`.
 5. Fill out the PR template completely
 6. A maintainer will review within 3–5 business days
 
