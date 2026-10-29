@@ -34,7 +34,7 @@ const contextMenuClickListener = vi.mocked(chrome.contextMenus.onClicked.addList
 describe('service-worker', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Restore removeAll callback behaviour after clearAllMocks resets it
+    // Restore removeAll callback behavior after clearAllMocks resets it
     vi.mocked(chrome.contextMenus.removeAll).mockImplementation((cb?: () => void) => cb?.())
     chrome.runtime.lastError = null
   })
