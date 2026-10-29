@@ -14,7 +14,9 @@ function buildCSS(): string {
     :host {
       position: fixed;
       inset: 0;
-      z-index: 2147483646;
+      /* Same (maximum) layer as Reading Mode; ties go to the later element,
+         so onMouseMove keeps this host last in <body> */
+      z-index: 2147483647;
       pointer-events: none;
     }
     .cp-ruler-band {
@@ -32,6 +34,9 @@ function buildCSS(): string {
 function onMouseMove(e: MouseEvent): void {
   /* v8 ignore next -- band is always set when this listener is active */
   if (!band) return
+  // Reading Mode (or another overlay) opened after the ruler would otherwise
+  // cover it
+  if (host && host.nextElementSibling) document.body.appendChild(host)
   band.style.top = `${e.clientY - 14}px`
 }
 

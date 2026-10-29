@@ -96,4 +96,21 @@ describe('ruler', () => {
     ruler.setEnabled(true)
     expect(ruler.isEnabled()).toBe(true)
   })
+
+  it('stays above Reading Mode: moves its host to the end of <body> when something is added after it', () => {
+    ruler.setEnabled(true)
+    const host = Array.from(document.body.children).find((el) => el.shadowRoot !== null)!
+    const reader = document.createElement('div')
+    document.body.appendChild(reader)
+    expect(document.body.lastElementChild).toBe(reader)
+    document.dispatchEvent(new MouseEvent('mousemove', { clientY: 200 }))
+    expect(document.body.lastElementChild).toBe(host)
+    reader.remove()
+  })
+
+  it('uses the maximum z-index, same as Reading Mode', () => {
+    ruler.setEnabled(true)
+    const host = Array.from(document.body.children).find((el) => el.shadowRoot !== null)!
+    expect(host.shadowRoot!.querySelector('style')!.textContent).toContain('z-index: 2147483647')
+  })
 })
