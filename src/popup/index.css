@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Brand fonts, bundled (SIL OFL, licenses in public/fonts) */
+@font-face {
+  font-family: 'DM Sans';
+  src: url('/fonts/DMSans-Variable-latin.woff2') format('woff2');
+  font-weight: 100 1000;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Serif Display';
+  src: url('/fonts/DMSerifDisplay-Regular-latin.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -12,6 +26,7 @@ body {
   margin: 0;
   background-color: #0D1F3C;
   color: #e2e8f0;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -21,7 +36,7 @@ input[type='range'] {
   appearance: none;
   height: 4px;
   border-radius: 2px;
-  background: #1a3357;
+  background: #162D50;
   outline: none;
 }
 

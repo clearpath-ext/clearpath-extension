@@ -4,11 +4,16 @@ export default {
   content: ['./src/**/*.{ts,tsx,html}'],
   theme: {
     extend: {
+      // Brand guide: clearpath-ext/.github → brand/README.md (matches clearpathext.com)
+      fontFamily: {
+        sans: ['"DM Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['"DM Serif Display"', 'Georgia', 'serif'],
+      },
       colors: {
         navy: {
           900: '#0D1F3C',
-          800: '#132847',
-          700: '#1a3357',
+          800: '#112240',
+          700: '#162D50',
         },
         brand: {
           blue: '#5B9BF8',
