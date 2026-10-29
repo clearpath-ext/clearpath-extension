@@ -1,7 +1,7 @@
 // ── TTS ──────────────────────────────────────────────────────────────────────
 
 export type TTSAction = 'play' | 'pause' | 'resume' | 'stop'
-export type TTSState = 'idle' | 'playing' | 'paused'
+export type TTSState = 'idle' | 'playing' | 'paused' | 'finished'
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
