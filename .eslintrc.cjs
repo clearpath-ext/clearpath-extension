@@ -9,6 +9,6 @@ module.exports = {
   ignorePatterns: ['dist', 'dist-firefox', '.eslintrc.cjs'],
   parser: '@typescript-eslint/parser',
   rules: {
-    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', ignoreRestSiblings: true }],
   },
 }
