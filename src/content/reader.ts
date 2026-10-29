@@ -1,4 +1,5 @@
 import { Readability } from '@mozilla/readability'
+import DOMPurify from 'dompurify'
 import { getSettings, setSettings } from '../lib/storage'
 import type { Settings, ReaderFont, ReaderTheme, ReaderColumnWidth } from '../shared/types'
 import { createLogoIcon } from '../shared/logo'
@@ -323,16 +324,14 @@ function buildCSS(settings: Settings): string {
 
 // ── Sanitize HTML ─────────────────────────────────────────────────────────────
 
+// Article HTML comes from the page itself; DOMPurify strips scripts, event
+// handlers, javascript: URLs and the like. Forms, styles and document-level
+// tags are dropped too: Reading Mode only needs the text, links and images.
 function sanitizeHtml(html: string): string {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(html, 'text/html')
-  doc.querySelectorAll('script,iframe,object,embed').forEach((el) => el.remove())
-  doc.querySelectorAll('*').forEach((el) => {
-    Array.from(el.attributes).forEach((attr) => {
-      if (attr.name.startsWith('on')) el.removeAttribute(attr.name)
-    })
+  return DOMPurify.sanitize(html, {
+    FORBID_TAGS: ['style', 'form', 'input', 'button', 'textarea', 'select', 'base', 'meta', 'link'],
+    FORBID_ATTR: ['style', 'srcset'],
   })
-  return doc.body.innerHTML
 }
 
 // ── Header DOM builder ────────────────────────────────────────────────────────
