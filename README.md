@@ -6,11 +6,12 @@
   <p><strong>A free, open source browser extension that makes any webpage accessible.</strong></p>
 
   <p>
-    <img src="https://img.shields.io/badge/Chrome-Coming_Soon-4F8EF7?style=flat-square&logo=googlechrome&logoColor=white" alt="Chrome"/>
-    <img src="https://img.shields.io/badge/Firefox-Coming_Soon-FF7139?style=flat-square&logo=firefox&logoColor=white" alt="Firefox"/>
-    <img src="https://img.shields.io/github/v/release/clearpath-ext/clearpath-extension?style=flat-square&label=Release" alt="Release"/>
-    <img src="https://img.shields.io/github/license/clearpath-ext/clearpath-extension?style=flat-square" alt="License"/>
-    <img src="https://img.shields.io/github/actions/workflow/status/clearpath-ext/clearpath-extension/ci.yml?label=CI&style=flat-square" alt="CI"/>
+    <!-- Static badges are committed (docs/badges) so they don't depend on shields.io loading; only Release is live -->
+    <img src="docs/badges/chrome-coming-soon.svg" alt="Chrome: coming soon"/>
+    <img src="docs/badges/firefox-coming-soon.svg" alt="Firefox: coming soon"/>
+    <a href="https://github.com/clearpath-ext/clearpath-extension/releases/latest"><img src="https://img.shields.io/github/v/release/clearpath-ext/clearpath-extension?style=flat-square&label=Release" alt="Latest release"/></a>
+    <a href="LICENSE"><img src="docs/badges/license-mit.svg" alt="License: MIT"/></a>
+    <a href="https://github.com/clearpath-ext/clearpath-extension/actions/workflows/ci.yml"><img src="https://github.com/clearpath-ext/clearpath-extension/actions/workflows/ci.yml/badge.svg" alt="CI status"/></a>
   </p>
 
 </div>
