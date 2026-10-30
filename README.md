@@ -56,8 +56,14 @@ Double-click any word for an instant plain-English definition in a Shadow DOM to
 ### ✅ Polish *(v0.7.0)*
 An accessibility pass across the popup and Reading Mode: keyboard support, focus management, screen reader announcements, and WCAG AA contrast.
 
-### 🗓 Launch *(planned — Phase 8)*
-The Chrome Web Store listing, a first-run welcome screen, then Firefox support and the Firefox Add-ons listing.
+### 🗓 Onboarding *(v0.8.0)*
+A first-run welcome screen that introduces the tools and walks through the optional LLM API key.
+
+### 🗓 Polish + security audit *(v0.9.0)*
+More refinement, and a full security review of the extension before it goes to the store.
+
+### 🗓 Launch *(v1.0.0)*
+The Chrome Web Store listing. Firefox support and the Firefox Add-ons listing follow after v1.0.
 
 ---
 
@@ -245,7 +251,11 @@ Quick start:
 | 5 | Profiles & Symbol Overlay | ✅ v0.5.0 |
 | 6 | Vocabulary Support (offline dictionary, double-click definitions) | ✅ v0.6.0 |
 | 7 | Polish (accessibility pass: keyboard, screen readers, WCAG AA contrast) | ✅ v0.7.0 |
-| 8 | Launch (Chrome Web Store listing, first-run onboarding, Firefox support) | 🗓 planned |
+| 8 | Onboarding (first-run welcome, tools tour, optional API key setup) | 🗓 v0.8.0 |
+| 9 | Polish + security audit | 🗓 v0.9.0 |
+| 10 | Launch: Chrome Web Store listing | 🗓 v1.0.0 |
+
+After v1.0: Firefox support and the Firefox Add-ons listing.
 
 ---
 
