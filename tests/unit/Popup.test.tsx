@@ -3,6 +3,8 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import { axe } from 'jest-axe'
 import manifest from '../../manifest.json'
 import pkg from '../../package.json'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 const { mockGetSettings, mockSetSettings, mockGetProfiles, mockSaveProfile, mockDeleteProfile, mockLoadProfile, mockExportProfiles, mockImportProfiles } = vi.hoisted(() => {
   const mockGetSettings = vi.fn()
@@ -137,6 +139,12 @@ describe('Popup', () => {
 
   it('keeps package.json and manifest.json on the same version', () => {
     expect(pkg.version).toBe(manifest.version)
+  })
+
+  it('keeps the README release badge on the manifest version', () => {
+    // Regenerate with: curl -o docs/badges/release.svg "https://img.shields.io/badge/Release-v<version>-blue?style=flat-square"
+    const badge = readFileSync(resolve(__dirname, '../../docs/badges/release.svg'), 'utf8')
+    expect(badge).toContain(`Release: v${manifest.version}`)
   })
 
   it('applies initial TTS state returned by GET_TTS_STATE on mount', async () => {

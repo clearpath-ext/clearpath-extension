@@ -6,10 +6,10 @@
   <p><strong>A free, open source browser extension that makes any webpage accessible.</strong></p>
 
   <p>
-    <!-- Static badges are committed (docs/badges) so they don't depend on shields.io loading; only Release is live -->
+    <!-- Badges are committed (docs/badges) so they don't depend on shields.io loading. release.svg is regenerated on each version bump; a test checks it matches manifest.json -->
     <img src="docs/badges/chrome-coming-soon.svg" alt="Chrome: coming soon"/>
     <img src="docs/badges/firefox-coming-soon.svg" alt="Firefox: coming soon"/>
-    <a href="https://github.com/clearpath-ext/clearpath-extension/releases/latest"><img src="https://img.shields.io/github/v/release/clearpath-ext/clearpath-extension?style=flat-square&label=Release" alt="Latest release"/></a>
+    <a href="https://github.com/clearpath-ext/clearpath-extension/releases/latest"><img src="docs/badges/release.svg" alt="Latest release"/></a>
     <a href="LICENSE"><img src="docs/badges/license-mit.svg" alt="License: MIT"/></a>
     <a href="https://github.com/clearpath-ext/clearpath-extension/actions/workflows/ci.yml"><img src="https://github.com/clearpath-ext/clearpath-extension/actions/workflows/ci.yml/badge.svg" alt="CI status"/></a>
   </p>
