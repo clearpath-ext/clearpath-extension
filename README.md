@@ -53,8 +53,11 @@ Create named accessibility profiles and save your current settings with one clic
 ### ✅ Vocabulary Support *(v0.6.0)*
 Double-click any word for an instant plain-English definition in a Shadow DOM tooltip. No API required, fully offline — powered by a bundled dictionary of 21,881 entries derived from [Simple English Wiktionary](https://simple.wiktionary.org) (CC BY-SA), which is written in plain English by design. A one-time Node.js data pipeline (`scripts/build-dictionary.js`) downloads the Wiktionary XML dump and extracts definitions into a compact 562 KB gzip dictionary bundled with the extension. Toggle from the popup or right-click context menu. Dismiss with Escape or a click outside.
 
-### 🚧 Polish *(in progress — Phase 7)*
-The accessibility pass shipped in v0.7.0: keyboard support, focus management, screen reader announcements, and WCAG AA contrast across the popup and Reading Mode. Still to come: Firefox support, a first-run welcome screen, and the Chrome Web Store and Firefox Add-ons listings.
+### ✅ Polish *(v0.7.0)*
+An accessibility pass across the popup and Reading Mode: keyboard support, focus management, screen reader announcements, and WCAG AA contrast.
+
+### 🗓 Launch *(planned — Phase 8)*
+The Chrome Web Store listing, a first-run welcome screen, then Firefox support and the Firefox Add-ons listing.
 
 ---
 
@@ -241,7 +244,8 @@ Quick start:
 | 4 | Focus Tools | ✅ v0.4.0 |
 | 5 | Profiles & Symbol Overlay | ✅ v0.5.0 |
 | 6 | Vocabulary Support (offline dictionary, double-click definitions) | ✅ v0.6.0 |
-| 7 | Polish (WCAG audit, Firefox, onboarding, store listing) | 🚧 in progress: accessibility pass shipped in v0.7.0 |
+| 7 | Polish (accessibility pass: keyboard, screen readers, WCAG AA contrast) | ✅ v0.7.0 |
+| 8 | Launch (Chrome Web Store listing, first-run onboarding, Firefox support) | 🗓 planned |
 
 ---
 
