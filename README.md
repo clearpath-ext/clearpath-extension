@@ -53,16 +53,23 @@ Create named accessibility profiles and save your current settings with one clic
 ### ✅ Vocabulary Support *(v0.6.0)*
 Double-click any word for an instant plain-English definition in a Shadow DOM tooltip. No API required, fully offline — powered by a bundled dictionary of 21,881 entries derived from [Simple English Wiktionary](https://simple.wiktionary.org) (CC BY-SA), which is written in plain English by design. A one-time Node.js data pipeline (`scripts/build-dictionary.js`) downloads the Wiktionary XML dump and extracts definitions into a compact 562 KB gzip dictionary bundled with the extension. Toggle from the popup or right-click context menu. Dismiss with Escape or a click outside.
 
-### 🗓 Polish *(planned — Phase 7)*
-Full WCAG 2.1 AA accessibility audit of the extension UI, Firefox compatibility, first-run onboarding experience, and submission to the Chrome Web Store and Firefox Add-ons.
+### 🚧 Polish *(in progress — Phase 7)*
+The accessibility pass shipped in v0.7.0: keyboard support, focus management, screen reader announcements, and WCAG AA contrast across the popup and Reading Mode. Still to come: Firefox support, a first-run welcome screen, and the Chrome Web Store and Firefox Add-ons listings.
 
 ---
 
 ## Installation
 
-### From the Browser Stores (Recommended)
+### From the Browser Stores
 - Chrome / Edge / Brave: Chrome Web Store *(coming soon)*
 - Firefox: Firefox Add-ons *(coming soon)*
+
+### Download a Release (Chrome, Edge, Brave)
+1. Download [`clearpath-chrome.zip`](https://github.com/clearpath-ext/clearpath-extension/releases/latest/download/clearpath-chrome.zip) from the latest release and unzip it.
+2. Open `chrome://extensions` and turn on **Developer mode** (top right).
+3. Click **Load unpacked** and choose the unzipped folder.
+
+To update later, download the new zip, replace the folder's contents, and click the reload icon on ClearPath's card in `chrome://extensions`.
 
 ### From Source
 ```bash
@@ -99,7 +106,7 @@ Simplify requires an LLM API key, or a local Ollama instance. Your text goes dir
 | UI | React 18 + Tailwind CSS (popup); vanilla DOM + Shadow DOM (content scripts) |
 | TTS | Web Speech API |
 | LLM | OpenAI / Anthropic / Ollama (direct from browser — no proxy) |
-| Testing | Vitest + jsdom + Testing Library (414 tests, 100% coverage) |
+| Testing | Vitest + jsdom + Testing Library + jest-axe (458 tests; 93% statement, 99.7% branch coverage) |
 | CI/CD | GitHub Actions |
 | Standard | Manifest V3 |
 | Package Manager | pnpm |
@@ -170,12 +177,13 @@ Quick start:
 **Privacy and security**
 - Your LLM API key is stored only on this device and is never included in exported profiles. A key saved by an earlier version moves over automatically.
 - Reading Mode cleans each article's HTML with DOMPurify before showing it.
+- ClearPath asks for fewer permissions: the unused `scripting` and `activeTab` permissions are gone, leaving only `storage` and `contextMenus`.
 
 **Look**
 - The new ClearPath logo on the toolbar icon, the popup and the Reading Mode header.
 - The popup uses the brand fonts (DM Sans and DM Serif Display, bundled with the extension) and the website's colors, and shows the real version number.
 
-457 tests across 18 files; 93% statement and 99.7% branch coverage.
+458 tests across 18 files; 93% statement and 99.7% branch coverage.
 
 ### v0.6.0 — Vocabulary Support *(2026-04-08)*
 - Double-click any word to see a plain-English definition in a Shadow DOM tooltip

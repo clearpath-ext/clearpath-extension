@@ -153,7 +153,7 @@ export function Popup() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [applySettingsState])
 
   // Populate voice list — must happen in popup context
   useEffect(() => {

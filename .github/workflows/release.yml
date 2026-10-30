@@ -74,6 +74,9 @@ jobs:
         run: |
           cd dist
           zip -r ../clearpath-chrome-${{ github.ref_name }}.zip .
+          # Same file without the version, so the website can link to
+          # releases/latest/download/clearpath-chrome.zip and never go stale
+          cp ../clearpath-chrome-${{ github.ref_name }}.zip ../clearpath-chrome.zip
 
       # - name: Package Firefox extension
       #   run: |
@@ -85,6 +88,7 @@ jobs:
         with:
           files: |
             clearpath-chrome-${{ github.ref_name }}.zip
+            clearpath-chrome.zip
           body_path: release-notes.md
           generate_release_notes: false
           draft: false
