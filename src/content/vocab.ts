@@ -59,6 +59,9 @@ function showTooltip(word: string, definition: string, clientX: number, clientY:
   style.textContent = [
     '.tooltip{',
     'position:absolute;',
+    // The host is a zero-width box at 0,0, so without this the tooltip
+    // shrinks to its narrowest wrap (two or three words per line)
+    'width:max-content;',
     'max-width:280px;',
     'background:#0D1F3C;',
     'color:#E2E8F0;',

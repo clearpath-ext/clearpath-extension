@@ -150,6 +150,32 @@ Quick start:
 
 ## Changelog
 
+### v0.7.0 — Polish *(2026-10-29)*
+
+**Fixes**
+- Symbol Overlay shows pictures again. The ARASAAC images weren't included in the v0.6.0 package, so the overlay had nothing to show.
+- The reading ruler stays on top of Reading Mode instead of hiding behind it.
+- The popup shows real ×, … and → characters instead of escape codes like `\u00d7`.
+- Word definitions show in a properly sized box instead of a narrow column two or three words wide.
+
+**Accessibility**
+- Escape closes Reading Mode and the Simplify panel.
+- Opening Reading Mode moves keyboard focus into it, and the page behind it can't be reached until it closes.
+- Simplify results are announced to screen readers.
+- The word-complexity tooltip opens from the keyboard, not only on hover.
+- Popup text and all four Reading Mode themes meet WCAG AA contrast.
+- The popup respects your system's reduce-motion setting.
+
+**Privacy and security**
+- Your LLM API key is stored only on this device and is never included in exported profiles. A key saved by an earlier version moves over automatically.
+- Reading Mode cleans each article's HTML with DOMPurify before showing it.
+
+**Look**
+- The new ClearPath logo on the toolbar icon, the popup and the Reading Mode header.
+- The popup uses the brand fonts (DM Sans and DM Serif Display, bundled with the extension) and the website's colors, and shows the real version number.
+
+457 tests across 18 files; 93% statement and 99.7% branch coverage.
+
 ### v0.6.0 — Vocabulary Support *(2026-04-08)*
 - Double-click any word to see a plain-English definition in a Shadow DOM tooltip
 - 21,881-entry offline dictionary bundled with the extension (562 KB gzip) — no API required
@@ -206,7 +232,7 @@ Quick start:
 | 4 | Focus Tools | ✅ v0.4.0 |
 | 5 | Profiles & Symbol Overlay | ✅ v0.5.0 |
 | 6 | Vocabulary Support (offline dictionary, double-click definitions) | ✅ v0.6.0 |
-| 7 | Polish (WCAG audit, Firefox, onboarding, store listing) | 🗓 planned |
+| 7 | Polish (WCAG audit, Firefox, onboarding, store listing) | 🚧 in progress: accessibility pass shipped in v0.7.0 |
 
 ---
 

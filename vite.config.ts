@@ -8,6 +8,10 @@ export default defineConfig(({ mode }) => ({
     react(),
     crx({ manifest }),
   ],
+  // Shown in the popup header; manifest.json is the one place the version lives
+  define: {
+    __APP_VERSION__: JSON.stringify(manifest.version),
+  },
   build: {
     minify: false,
     sourcemap: mode !== 'production',

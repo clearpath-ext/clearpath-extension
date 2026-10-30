@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { axe } from 'jest-axe'
+import manifest from '../../manifest.json'
+import pkg from '../../package.json'
 
 const { mockGetSettings, mockSetSettings, mockGetProfiles, mockSaveProfile, mockDeleteProfile, mockLoadProfile, mockExportProfiles, mockImportProfiles } = vi.hoisted(() => {
   const mockGetSettings = vi.fn()
@@ -124,6 +126,17 @@ describe('Popup', () => {
       render(<Popup />)
     })
     expect(screen.getByRole('button', { name: /read page/i })).toBeInTheDocument()
+  })
+
+  it('shows the version from manifest.json in the header', async () => {
+    await act(async () => {
+      render(<Popup />)
+    })
+    expect(screen.getByText(`v${manifest.version}`)).toBeInTheDocument()
+  })
+
+  it('keeps package.json and manifest.json on the same version', () => {
+    expect(pkg.version).toBe(manifest.version)
   })
 
   it('applies initial TTS state returned by GET_TTS_STATE on mount', async () => {

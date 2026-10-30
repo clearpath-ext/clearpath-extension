@@ -30,8 +30,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # A tag that doesn't match manifest.json would publish a zip that
+      # reports a different version than the release it's attached to
+      - name: Check tag matches manifest version
+        run: |
+          v=$(node -p "require('./manifest.json').version")
+          [ "${{ github.ref_name }}" = "v$v" ] || { echo "Tag ${{ github.ref_name }} != manifest v$v"; exit 1; }
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
       - name: Run tests
         run: pnpm test
+
+      # Release notes are this version's section of the README changelog
+      - name: Extract release notes
+        run: |
+          awk -v tag="### ${{ github.ref_name }} " '
+            index($0, tag) == 1 { on = 1; next }
+            on && /^### v/ { exit }
+            on && /^---$/ { exit }
+            on { print }
+          ' README.md > release-notes.md
+          [ -s release-notes.md ] || { echo "No changelog section for ${{ github.ref_name }} in README.md"; exit 1; }
 
       - name: Build Chrome
         run: pnpm build
@@ -61,7 +85,8 @@ jobs:
         with:
           files: |
             clearpath-chrome-${{ github.ref_name }}.zip
-          generate_release_notes: true
+          body_path: release-notes.md
+          generate_release_notes: false
           draft: false
 
       # ── Store submission (Phase 6) ────────────────────────────────────────────

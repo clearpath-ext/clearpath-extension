@@ -413,7 +413,7 @@ export function Popup() {
       <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
         <img src="/icons/clearpath-icon.svg" alt="" width={24} height={24} className="w-6 h-6" />
         <span className="font-display text-lg leading-none text-white">ClearPath</span>
-        <span className="ml-auto text-xs text-slate-400 font-medium">v0.6</span>
+        <span className="ml-auto text-xs text-slate-400 font-medium">v{__APP_VERSION__}</span>
       </div>
 
       {/* Read Aloud section */}
