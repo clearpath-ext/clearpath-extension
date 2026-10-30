@@ -73,7 +73,7 @@ The Chrome Web Store listing. Firefox support and the Firefox Add-ons listing fo
 - Chrome / Edge / Brave: Chrome Web Store *(planned for v1.0)*
 - Firefox: Firefox Add-ons *(after v1.0)*
 
-### Download a Release (Chrome, Edge, Brave)
+### Download a Release (Chrome, Edge, Brave, Arc, Opera)
 1. Download [`clearpath-chrome.zip`](https://github.com/clearpath-ext/clearpath-extension/releases/latest/download/clearpath-chrome.zip) from the latest release and unzip it.
 2. Open `chrome://extensions` and turn on **Developer mode** (top right).
 3. Click **Load unpacked** and choose the unzipped folder.
@@ -148,8 +148,10 @@ src/
 ├── popup/
 │   ├── Popup.tsx           # React popup: Read Aloud + Voice + LLM + Reader + Focus Tools + Symbols + Vocab + Profiles
 │   └── index.tsx
-└── shared/
-    └── types.ts            # Message union, Settings interface, defaults
+├── shared/
+│   ├── logo.ts             # The C-path mark, built as inline SVG for the popup and reader
+│   └── types.ts            # Message union, Settings interface, defaults
+└── globals.d.ts            # __APP_VERSION__ (injected from manifest.json by Vite)
 ```
 
 ---
