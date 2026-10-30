@@ -7,8 +7,8 @@
 
   <p>
     <!-- Badges are committed (docs/badges) so they don't depend on shields.io loading. release.svg is regenerated on each version bump; a test checks it matches manifest.json -->
-    <img src="docs/badges/chrome-coming-soon.svg" alt="Chrome: coming soon"/>
-    <img src="docs/badges/firefox-coming-soon.svg" alt="Firefox: coming soon"/>
+    <img src="docs/badges/chrome-web-store-v1.svg" alt="Chrome Web Store: planned for v1.0"/>
+    <img src="docs/badges/firefox-after-v1.svg" alt="Firefox: after v1.0"/>
     <a href="https://github.com/clearpath-ext/clearpath-extension/releases/latest"><img src="docs/badges/release.svg" alt="Latest release"/></a>
     <a href="LICENSE"><img src="docs/badges/license-mit.svg" alt="License: MIT"/></a>
     <a href="https://github.com/clearpath-ext/clearpath-extension/actions/workflows/ci.yml"><img src="https://github.com/clearpath-ext/clearpath-extension/actions/workflows/ci.yml/badge.svg" alt="CI status"/></a>
@@ -70,8 +70,8 @@ The Chrome Web Store listing. Firefox support and the Firefox Add-ons listing fo
 ## Installation
 
 ### From the Browser Stores
-- Chrome / Edge / Brave: Chrome Web Store *(coming soon)*
-- Firefox: Firefox Add-ons *(coming soon)*
+- Chrome / Edge / Brave: Chrome Web Store *(planned for v1.0)*
+- Firefox: Firefox Add-ons *(after v1.0)*
 
 ### Download a Release (Chrome, Edge, Brave)
 1. Download [`clearpath-chrome.zip`](https://github.com/clearpath-ext/clearpath-extension/releases/latest/download/clearpath-chrome.zip) from the latest release and unzip it.
@@ -251,9 +251,9 @@ Quick start:
 | 5 | Profiles & Symbol Overlay | ✅ v0.5.0 |
 | 6 | Vocabulary Support (offline dictionary, double-click definitions) | ✅ v0.6.0 |
 | 7 | Polish (accessibility pass: keyboard, screen readers, WCAG AA contrast) | ✅ v0.7.0 |
-| 8 | Onboarding (first-run welcome, tools tour, optional API key setup) | 🗓 v0.8.0 |
-| 9 | Polish + security audit | 🗓 v0.9.0 |
-| 10 | Launch: Chrome Web Store listing | 🗓 v1.0.0 |
+| 8 | Onboarding (first-run welcome, tools tour, optional API key setup) | 🗓 [v0.8.0](https://github.com/clearpath-ext/clearpath-extension/milestone/1) |
+| 9 | Polish + security audit | 🗓 [v0.9.0](https://github.com/clearpath-ext/clearpath-extension/milestone/2) |
+| 10 | Launch: Chrome Web Store listing | 🗓 [v1.0.0](https://github.com/clearpath-ext/clearpath-extension/milestone/3) |
 
 After v1.0: Firefox support and the Firefox Add-ons listing.
 
